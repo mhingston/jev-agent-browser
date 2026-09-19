@@ -1,10 +1,32 @@
 import { spawn } from "node:child_process";
-import type { BrowserFailureKind, RouteDecision } from "./types.js";
+import { readFile } from "node:fs/promises";
+import type { BrowserFailureKind, BrowserToolSpec, RouteDecision } from "./types.js";
 
 export interface CommandResult {
   code: number;
   stdout: string;
   stderr: string;
+}
+
+export interface AgentBrowserOptions {
+  session?: string;
+  binary?: string;
+  timeoutMs?: number;
+  cdp?: string | number;
+  autoConnect?: boolean;
+  pinTab?: boolean;
+  browserArgs?: string[];
+  stdin?: string;
+}
+
+export interface BrowserDriver {
+  snapshot(): Promise<unknown>;
+  execute(decision: RouteDecision, currentSnapshotHash: string): Promise<CommandResult | null>;
+  run?(args: string[]): Promise<CommandResult>;
+  open?(url: string): Promise<CommandResult>;
+  close?(): Promise<CommandResult>;
+  eval?(source: string): Promise<unknown>;
+  runTool?(tool: BrowserToolSpec): Promise<CommandResult>;
 }
 
 export function classifyCommandFailure(result: Pick<CommandResult, "stdout" | "stderr"> | string): BrowserFailureKind {
@@ -32,18 +54,48 @@ export function agentBrowserArgs(session: string | undefined, args: string[]): s
 
 export function runAgentBrowser(
   args: string[],
-  options: { session?: string; binary?: string } = {},
+  options: AgentBrowserOptions = {},
 ): Promise<CommandResult> {
   const binary = options.binary ?? process.env.AGENT_BROWSER_BIN ?? "agent-browser";
-  const finalArgs = agentBrowserArgs(options.session, args);
+  if (options.browserArgs?.some((arg) => typeof arg !== "string")) {
+    return Promise.reject(new Error("browserArgs must be an array of strings"));
+  }
+  const wrapperOwnedArgs = new Set(["--session", "--cdp", "--auto-connect", "--pin-tab"]);
+  if (options.browserArgs?.some((arg) => wrapperOwnedArgs.has(arg.split("=", 1)[0]))) {
+    return Promise.reject(new Error("browserArgs cannot override session or connection options"));
+  }
+  const connectionArgs = options.cdp != null
+    ? ["--cdp", String(options.cdp)]
+    : options.autoConnect ? ["--auto-connect"] : [];
+  if (options.pinTab) connectionArgs.push("--pin-tab");
+  const finalArgs = [
+    ...(options.session && options.cdp == null && !options.autoConnect ? ["--session", options.session] : []),
+    ...connectionArgs,
+    ...(options.browserArgs ?? []),
+    ...args,
+  ];
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, finalArgs, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(binary, finalArgs, { shell: false, stdio: [options.stdin == null ? "ignore" : "pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+    let settled = false;
+    const finish = (error: Error | null, result?: CommandResult): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result ?? { code: 1, stdout, stderr });
+    };
+    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.on("error", (error) => finish(error));
+    child.on("close", (code) => finish(null, { code: code ?? 1, stdout, stderr }));
+    if (options.stdin != null) child.stdin?.end(options.stdin);
+    const timeoutMs = options.timeoutMs ?? 30_000;
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(new Error(`agent-browser timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
   });
 }
 
@@ -94,8 +146,8 @@ export function clearAgentBrowserPreflightCache(): void {
 }
 
 export function captureSnapshot(session?: string): Promise<unknown>;
-export function captureSnapshot(options?: { session?: string; binary?: string }): Promise<unknown>;
-export async function captureSnapshot(optionsOrSession: string | { session?: string; binary?: string } = {}): Promise<unknown> {
+export function captureSnapshot(options?: AgentBrowserOptions): Promise<unknown>;
+export async function captureSnapshot(optionsOrSession: string | AgentBrowserOptions = {}): Promise<unknown> {
   const options = typeof optionsOrSession === "string" ? { session: optionsOrSession } : optionsOrSession;
   await checkAgentBrowser({ binary: options.binary });
   // Keep the full accessibility text for postconditions; normalizeSnapshot still
@@ -135,6 +187,8 @@ export function commandForDecision(decision: RouteDecision): string[] | null {
       return ["forward"];
     case "reload":
       return ["reload"];
+    case "run-tool":
+      return null;
     case "wait":
       return ["wait", "--load", "networkidle"];
     case "stop":
@@ -145,7 +199,7 @@ export function commandForDecision(decision: RouteDecision): string[] | null {
 
 export async function executeDecision(
   decision: RouteDecision,
-  options: { session?: string; currentSnapshotHash: string; binary?: string },
+  options: AgentBrowserOptions & { currentSnapshotHash: string },
 ): Promise<CommandResult | null> {
   if (decision.snapshotHash !== options.currentSnapshotHash) {
     throw new Error("Refusing to execute a decision from a stale snapshot");
@@ -154,4 +208,49 @@ export async function executeDecision(
   const command = commandForDecision(decision);
   if (!command) return null;
   return runAgentBrowser(command, options);
+}
+
+/** Injectable browser seam for library callers, tests, CDP attach, and parent agents. */
+export class AgentBrowserSession implements BrowserDriver {
+  constructor(private readonly options: AgentBrowserOptions = {}) {}
+
+  run(args: string[]): Promise<CommandResult> {
+    return runAgentBrowser(args, this.options);
+  }
+
+  snapshot(): Promise<unknown> {
+    return captureSnapshot(this.options);
+  }
+
+  execute(decision: RouteDecision, currentSnapshotHash: string): Promise<CommandResult | null> {
+    return executeDecision(decision, { ...this.options, currentSnapshotHash });
+  }
+
+  open(url: string): Promise<CommandResult> {
+    return this.run(["open", url]);
+  }
+
+  close(): Promise<CommandResult> {
+    return this.run(["close"]);
+  }
+
+  async eval(source: string): Promise<unknown> {
+    const result = await runAgentBrowser(["eval", "--json", "--stdin"], { ...this.options, stdin: source });
+    if (result.code !== 0) throw new Error(`agent-browser eval failed: ${result.stderr.trim() || `exit ${result.code}`}`);
+    try {
+      const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+      return (parsed.data as Record<string, unknown> | undefined)?.result ?? parsed.result ?? parsed;
+    } catch {
+      throw new Error(`agent-browser returned invalid eval JSON: ${result.stdout.slice(0, 500)}`);
+    }
+  }
+
+  async runTool(tool: BrowserToolSpec): Promise<CommandResult> {
+    const source = tool.sourcePath ? await readFile(tool.sourcePath, "utf8") : tool.source;
+    if (!source) throw new Error(`allowlisted tool has no source: ${tool.id}`);
+    const config = tool.config && typeof tool.config === "object"
+      ? `globalThis.__JEV_TOOL_CONFIG__ = ${JSON.stringify(tool.config)};\n`
+      : "";
+    return runAgentBrowser(["eval", "--json", "--stdin"], { ...this.options, stdin: `${config}${source}` });
+  }
 }

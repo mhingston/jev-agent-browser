@@ -14,6 +14,7 @@ Load the installed `agent-browser` core skill before using this integration. Kee
 5. Validate probability maps, confidence, the snapshot hash, and the action candidate before executing.
 6. Execute one allowlisted `agent-browser` command.
 7. Re-snapshot after every action because `@eN` refs become stale; use a deterministic postcondition when one is available.
+8. Escalate a structured handoff when the loop is ambiguous, stuck, or recovery attempts are exhausted.
 
 The helper uses Jev only for narrow judgments. It does not ask Jev to generate selectors, browser commands, arbitrary form values, or prose. Candidate values must come from the caller. Same-snapshot questions are batched in one TypeSafe request.
 
@@ -24,6 +25,10 @@ Default policy:
 - `0.8` goal-completion probability before returning `stop`.
 - `0.9` confidence plus explicit `--allow-risky` for destructive actions.
 - Repeated unchanged non-wait actions terminate the loop as `blocked` rather than retrying forever.
+- The runner can recover from Jev's stuck judgment, repeated signatures, and browser failures with bounded retries; the final `handoff` records whether a parent agent must decide next.
+- Inject `AgentBrowserSession` or a custom `BrowserDriver` for CDP/auto-connect/pinned-tab sessions and deterministic tests.
+- Register only caller-owned browser tools; Jev may choose a `run-tool` candidate only from that closed catalog.
+- `runResearch` and classification profiles provide bounded multi-page collection, typed batch labels, host-allowlisted follow-ups, and optional enrichment.
 - `check`/`uncheck`, `hover`, and `focus` are offered only from observed compatible controls.
 - Generated field text is opt-in through a caller-owned provider and is never allowed for sensitive-looking fields.
 - An optional `jevPostActionVerifier` can judge the before/after evidence after a command; the command result and page evidence remain code-owned inputs.

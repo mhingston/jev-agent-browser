@@ -11,8 +11,10 @@ import type {
   RouteDecision,
   RouteInput,
   RoutePolicy,
+  RecoveryContext,
   SystemOneLikeClient,
 } from "./types.js";
+import type { ToolSpec } from "./toolRouter.js";
 
 const cache = new Map<string, { expiresAt: number; decision: RouteDecision }>();
 
@@ -29,12 +31,20 @@ const OPERATION_LABELS: Record<ActionCandidate["kind"], string> = {
   back: "Go back to the previous page",
   forward: "Go forward to the next page",
   reload: "Reload the current page",
+  "run-tool": "Run an allowlisted browser tool",
   wait: "Wait for the page to update or finish loading",
   stop: "Stop because the goal is complete",
   review: "Ask for review because no safe action is clear",
 };
 
-const TARGET_OPERATIONS = new Set<ActionCandidate["kind"]>(["click", "fill", "select", "check", "uncheck", "hover", "focus"]);
+const TARGET_OPERATIONS = new Set<ActionCandidate["kind"]>(["click", "fill", "select", "check", "uncheck", "hover", "focus", "run-tool"]);
+
+export interface RouteContext {
+  plan?: string;
+  subtask?: string;
+  recovery?: RecoveryContext;
+  tools?: ToolSpec[];
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -89,10 +99,14 @@ function requestState(
   candidates: ActionCandidate[],
   history: ActionHistoryEntry[],
   pageText = snapshot.pageText,
+  context: RouteContext = {},
 ): unknown {
   const candidateRefs = new Set(candidates.map((candidate) => candidate.ref).filter((ref): ref is string => Boolean(ref)));
   return {
     goal: snapshot.goal,
+    ...(context.plan ? { plan: context.plan } : {}),
+    ...(context.subtask ? { subtask: context.subtask } : {}),
+    ...(context.recovery ? { recovery: context.recovery } : {}),
     page: {
       url: snapshot.url,
       title: snapshot.title,
@@ -104,10 +118,11 @@ function requestState(
         ...element,
         value: redactElementValue(element.name, element.value),
       })),
-    candidates: candidates.map(({ id, kind, ref, value, label, risk }) => ({
+    candidates: candidates.map(({ id, kind, ref, value, toolId, label, risk }) => ({
       id,
       kind,
       ref,
+      tool_id: toolId,
       value: kind === "select" ? value : undefined,
       label,
       risk,
@@ -128,6 +143,13 @@ function requestQuestions(candidates: ActionCandidate[]) {
       {
         true: "The page visibly confirms the requested goal is complete.",
         false: "The goal is not visibly complete, or the page does not provide enough evidence.",
+      },
+    ),
+    stuck: noul(
+      "Is the agent stuck, repeating itself, or unable to make safe progress toward `goal`?",
+      {
+        true: "The current approach is stuck and should change strategy or escalate.",
+        false: "A safe next action remains available.",
       },
     ),
   };
@@ -154,11 +176,13 @@ function fallbackDecision(
   stateSizeChars = 0,
   latencyMs = 0,
   cached = false,
+  stuckProbability = 0,
 ): RouteDecision {
   return {
     kind: reasonCode === "goal-complete" ? "stop" : "review",
     confidence,
     goalCompletedProbability,
+    stuckProbability,
     probabilities,
     model: response.model ?? policy.model,
     snapshotHash: snapshot.snapshotHash,
@@ -225,9 +249,10 @@ export async function routeSnapshot(
   options: Partial<RoutePolicy> = {},
   client: SystemOneLikeClient = new TypeSafeClient() as unknown as SystemOneLikeClient,
   history: ActionHistoryEntry[] = [],
+  context: RouteContext = {},
 ): Promise<RouteDecision> {
   const policy = resolvePolicy(options);
-  const candidates = buildCandidates(snapshot, inputValues, policy);
+  const candidates = buildCandidates(snapshot, inputValues, { ...policy, tools: context.tools });
   const policyKey = JSON.stringify({
     model: policy.model,
     confidenceFloor: policy.confidenceFloor,
@@ -240,6 +265,12 @@ export async function routeSnapshot(
     enableContextSieve: policy.enableContextSieve,
     contextSieveThreshold: policy.contextSieveThreshold,
     maxContextBlocks: policy.maxContextBlocks,
+    context: {
+      plan: context.plan,
+      subtask: context.subtask,
+      recovery: context.recovery,
+      tools: context.tools?.map(({ id, label, risk }) => ({ id, label, risk })),
+    },
   });
   const cacheKey = `${snapshot.snapshotHash}:${snapshot.goal}:${JSON.stringify(inputValues)}:${JSON.stringify(history.slice(-10))}:${policyKey}`;
   const now = Date.now();
@@ -256,7 +287,7 @@ export async function routeSnapshot(
     });
     pageText = sieved.text;
   }
-  const state = requestState(snapshot, candidates, history, pageText);
+  const state = requestState(snapshot, candidates, history, pageText, context);
   const stateSizeChars = JSON.stringify(state).length;
   let response: Awaited<ReturnType<SystemOneLikeClient["systemOne"]>>;
   try {
@@ -268,9 +299,10 @@ export async function routeSnapshot(
   }
   const latencyMs = Math.round((performance.now() - started) * 100) / 100;
   const goalCompletedProbability = validateNoul(response.answers.goal_completed);
+  const stuckProbability = response.answers.stuck == null ? 0 : validateNoul(response.answers.stuck);
   const selection = resolveSelection(response, candidates);
-  if (goalCompletedProbability == null || !selection) {
-    const decision = fallbackDecision(snapshot, policy, "invalid-response", response, 0, goalCompletedProbability ?? 0, {}, stateSizeChars, latencyMs);
+  if (goalCompletedProbability == null || stuckProbability == null || !selection) {
+    const decision = fallbackDecision(snapshot, policy, "invalid-response", response, 0, goalCompletedProbability ?? 0, {}, stateSizeChars, latencyMs, false, stuckProbability ?? 0);
     cache.set(cacheKey, { expiresAt: now + policy.cacheTtlMs, decision });
     return decision;
   }
@@ -278,13 +310,13 @@ export async function routeSnapshot(
   const { candidate: selected, confidence, probabilities } = selection;
   let decision: RouteDecision;
   if (goalCompletedProbability >= policy.goalCompleteThreshold) {
-    decision = fallbackDecision(snapshot, policy, "goal-complete", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs);
+    decision = fallbackDecision(snapshot, policy, "goal-complete", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs, false, stuckProbability);
   } else if (confidence < policy.confidenceFloor) {
-    decision = fallbackDecision(snapshot, policy, "low-confidence", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs);
+    decision = fallbackDecision(snapshot, policy, "low-confidence", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs, false, stuckProbability);
   } else if (selected.kind === "stop") {
-    decision = fallbackDecision(snapshot, policy, "low-confidence", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs);
+    decision = fallbackDecision(snapshot, policy, "low-confidence", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs, false, stuckProbability);
   } else if (selected.risk === "destructive" && (!policy.allowRisky || confidence < policy.riskyConfidence)) {
-    decision = fallbackDecision(snapshot, policy, "unsafe-action", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs);
+    decision = fallbackDecision(snapshot, policy, "unsafe-action", response, confidence, goalCompletedProbability, probabilities, stateSizeChars, latencyMs, false, stuckProbability);
   } else {
     decision = {
       kind: selected.kind,
@@ -293,9 +325,11 @@ export async function routeSnapshot(
       key: selected.key,
       direction: selected.direction,
       pixels: selected.pixels,
+      toolId: selected.toolId,
       candidateId: selected.id,
       confidence,
       goalCompletedProbability,
+      stuckProbability,
       probabilities,
       model: response.model,
       snapshotHash: snapshot.snapshotHash,
@@ -324,7 +358,11 @@ export async function routeInput(
     maxPageTextChars: policy.maxPageTextChars,
     source: input.source,
   });
-  return routeSnapshot(snapshot, input.inputValues, policy, client, input.history ?? []);
+  return routeSnapshot(snapshot, input.inputValues, policy, client, input.history ?? [], {
+    plan: input.plan,
+    subtask: input.subtask,
+    recovery: input.recovery,
+  });
 }
 
 export function defaultPolicy(): RoutePolicy {

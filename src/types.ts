@@ -11,6 +11,7 @@ export type ActionKind =
   | "back"
   | "forward"
   | "reload"
+  | "run-tool"
   | "wait"
   | "stop"
   | "review";
@@ -72,6 +73,7 @@ export interface ActionCandidate {
   key?: string;
   direction?: "up" | "down" | "left" | "right";
   pixels?: number;
+  toolId?: string;
   label: string;
   risk: Risk;
 }
@@ -91,9 +93,11 @@ export interface RouteDecision {
   key?: string;
   direction?: "up" | "down" | "left" | "right";
   pixels?: number;
+  toolId?: string;
   candidateId?: string;
   confidence: number;
   goalCompletedProbability: number;
+  stuckProbability: number;
   probabilities: Record<string, number>;
   model: string;
   snapshotHash: string;
@@ -121,6 +125,16 @@ export interface RouteInput {
   history?: ActionHistoryEntry[];
   policy?: Partial<RoutePolicy>;
   source?: "agent-browser" | "fixture";
+  plan?: string;
+  subtask?: string;
+  recovery?: RecoveryContext;
+}
+
+export interface RecoveryContext {
+  reason: string;
+  attempt: number;
+  avoid?: string[];
+  instruction?: string;
 }
 
 export interface ChoiceAnswer {
@@ -152,6 +166,17 @@ export interface PostActionContext {
 }
 
 export type PostActionVerifier = (context: PostActionContext) => boolean | Promise<boolean>;
+
+export interface BrowserToolSpec {
+  id: string;
+  label: string;
+  description?: string;
+  risk?: Risk;
+  source?: string;
+  sourcePath?: string;
+  config?: Record<string, unknown>;
+  collect?: boolean;
+}
 
 export interface SystemOneLikeClient {
   systemOne(request: {

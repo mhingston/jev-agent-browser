@@ -81,6 +81,12 @@ describe("agent-browser Jev router", () => {
     expect(commandForDecision({ kind: "reload", snapshotHash: "x" } as any)).toEqual(["reload"]);
   });
 
+  it("adds allowlisted browser tools to the closed action space", () => {
+    const snapshot = normalizeSnapshot(rawSnapshot, "Extract the page data", { source: "fixture" });
+    const candidates = buildCandidates(snapshot, {}, { tools: [{ id: "extract", label: "Extract visible data", risk: "read" }] });
+    expect(candidates.find((candidate) => candidate.kind === "run-tool")?.toolId).toBe("extract");
+  });
+
   it("exposes observed dropdown options as select candidates", () => {
     const snapshot = normalizeSnapshot({
       url: "https://example.test/search",

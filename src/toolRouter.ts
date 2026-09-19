@@ -1,12 +1,7 @@
 import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
-import type { Risk, SystemOneLikeClient } from "./types.js";
+import type { BrowserToolSpec, SystemOneLikeClient } from "./types.js";
 
-export interface ToolSpec {
-  id: string;
-  label: string;
-  description?: string;
-  risk?: Risk;
-}
+export type ToolSpec = BrowserToolSpec;
 
 export interface ToolRouteOptions {
   model?: string;

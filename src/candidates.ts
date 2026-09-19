@@ -1,4 +1,5 @@
 import type { ActionCandidate, BrowserElement, NormalizedSnapshot, Risk } from "./types.js";
+import type { ToolSpec } from "./toolRouter.js";
 
 const riskyPattern = /\b(delete|remove|purchase|buy|send|confirm|approve|pay|checkout|transfer|password|credential|secret|authorize|grant|revoke|publish)\b/i;
 const writePattern = /\b(save|edit|update|change|add|create|post|reply|upload|login|sign in|log in|submit|search|filter)\b/i;
@@ -97,7 +98,7 @@ function candidatesForElement(
 export function buildCandidates(
   snapshot: NormalizedSnapshot,
   inputValues: Record<string, string> = {},
-  options: { maxCandidates?: number; maxLabelChars?: number; allowGeneratedText?: boolean } = {},
+  options: { maxCandidates?: number; maxLabelChars?: number; allowGeneratedText?: boolean; tools?: ToolSpec[] } = {},
 ): ActionCandidate[] {
   const maxCandidates = options.maxCandidates ?? 20;
   const maxLabelChars = options.maxLabelChars ?? 160;
@@ -132,6 +133,16 @@ export function buildCandidates(
   for (const candidate of navigation) {
     candidate.id = `c${candidates.length}`;
     candidates.push(candidate);
+  }
+  for (const tool of options.tools ?? []) {
+    if (!tool.id || !tool.label) continue;
+    candidates.push({
+      id: `c${candidates.length}`,
+      kind: "run-tool",
+      toolId: tool.id,
+      label: `Run allowlisted tool “${tool.label}”`,
+      risk: tool.risk ?? "read",
+    });
   }
   const appendSynthetic = (candidate: Omit<ActionCandidate, "id">): void => {
     candidates.push({ ...candidate, id: `c${candidates.length}` });

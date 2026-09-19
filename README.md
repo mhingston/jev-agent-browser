@@ -69,6 +69,8 @@ npm run doctor
 
 The TypeSafe SDK reads the already-exported `TYPESAFE_API_KEY`. Jev is pinned to `jev-1.13.0` by default; set `TYPESAFE_DEFAULT_MODEL` to override it.
 
+The package metadata is prepared for an npm release, but this repository remains `private` until a non-conflicting package name or npm scope is selected. Until then, use the checked-out CLI commands above.
+
 `doctor` verifies that the `agent-browser` binary is executable and that its bundled core skill can be loaded. If it fails, install the browser tool with `npm i -g agent-browser && agent-browser install`.
 
 ## Quick start
@@ -111,11 +113,79 @@ The sidecar repeats the same prerequisite check automatically and caches the res
 | `npm run doctor` | Verify `agent-browser` and its bundled core skill | No |
 | `node dist/cli.js route ...` | Dry-run one validated decision | Yes |
 | `node dist/cli.js run ...` | Execute the bounded route–act–reobserve loop | Yes |
+| `node dist/cli.js research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
 | `npm run smoke` | Check the TypeSafe API and live router contract | Yes |
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
 
 `route` is useful when another program owns execution. `run` is the recommended starting point when this package should own execution and completion checks.
+
+For delegated execution, add `--plan` and `--subtask`. For existing Chrome sessions, use `--cdp`, `--auto-connect`, or `--pin-tab`. The CLI defaults to the TypeSafe SDK; compatible HTTP decision endpoints can be selected with `--transport fetch --endpoint <url>`.
+
+### Library API
+
+The same loop can be embedded in a Node agent. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
+
+```ts
+import { AgentBrowserSession, createDecisionClient, runGoal } from "jev-agent-browser";
+
+const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
+const client = createDecisionClient({ transport: "typesafe" });
+const result = await runGoal({
+  browser,
+  client,
+  goal: "Open the pricing page",
+  plan: "Navigate to the pricing page and verify its heading",
+  maxSteps: 5,
+});
+
+console.log(result.status, result.reason, result.handoff);
+```
+
+`RunResult.handoff` is designed for parent agents: it includes the current URL, bounded observation, recent actions, escalation state, and whether the task can be resumed. Use `onEvent` for JSONL-style progress, or set `trace: false` when only the final result is needed.
+
+### Allowlisted browser tools
+
+Register page helpers explicitly when a task needs bounded JavaScript or extraction. Jev can select only the registered IDs; the runner executes a tool only when the injected browser driver exposes `runTool`.
+
+```ts
+const tools = [{
+  id: "extract-results",
+  label: "Extract visible result cards",
+  risk: "read" as const,
+  sourcePath: "./tools/extract-results.js",
+  collect: true,
+}];
+
+const result = await runGoal({ browser, client, goal: "Collect the result cards", tools });
+```
+
+Tool source is caller-owned and allowlisted. Keep write-capable tools out of the catalog unless the surrounding application supplies its own confirmation policy.
+
+### Research and classification
+
+For bounded multi-page research, provide queries, an explicit classification profile, and optional collecting tools. The runner deduplicates collected items, batches typed Choice questions, applies profile overrides, restricts follow-up URLs to allowed hosts, and can enrich kept contact evidence.
+
+```ts
+const result = await runResearch({
+  browser,
+  client,
+  config: {
+    queries: [{ url: "https://example.com/jobs", goal: "Collect relevant roles" }],
+    profile: {
+      dimensions: {
+        relevance: {
+          instructions: "Is this role relevant?",
+          choices: { yes: "Relevant", no: "Not relevant" },
+        },
+      },
+    },
+    tools,
+  },
+});
+```
+
+Use `loadResearchConfig("./research.json")` when the profile and tool paths should live in a checked-in config file.
 
 ### Explicit form values
 
@@ -218,3 +288,14 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 - Do not reuse a decision after the snapshot hash changes.
 - Use `review` as the fallback whenever Jev is uncertain or no safe action is clear.
 - Treat a completion judgment as evidence, not proof; supply `--expect-text` or the library `verifyCompletion` callback when an exact postcondition is available.
+
+## Feature summary
+
+| Capability | Implementation | Safety boundary |
+| --- | --- | --- |
+| Browser execution | `agent-browser` CLI, injected browser drivers, sessions, CDP attach, auto-connect, and pinned tabs | Commands remain allowlisted and bounded |
+| Jev routing | Typed operation + target Choice questions and goal/stuck Noul judgments | Exact probability maps, confidence floors, risk gates |
+| Recovery | Repetition detection, Jev stuck signal, bounded retries, structured handoffs | Recovery attempts and max steps are finite |
+| Tools | Closed-catalog `run-tool` actions and standalone tool router | Caller-owned allowlist; no invented IDs |
+| Research | Multi-query collection, deduplication, follow-ups, profile classification, enrichment | Host allowlists and bounded evidence |
+| Verification | Snapshot hashes, post-action verifier, expected-text checks, calibration metrics | Ambiguity returns `review` or a resumable handoff |

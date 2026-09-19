@@ -2,6 +2,22 @@
   "name": "jev-agent-browser",
   "version": "0.1.0",
   "private": true,
+  "description": "Bounded, confidence-gated browser actions powered by TypeSafe Jev and agent-browser",
+  "license": "MIT",
+  "author": "Mark Hingston",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mhingston/jev-agent-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mhingston/jev-agent-browser/issues"
+  },
+  "homepage": "https://github.com/mhingston/jev-agent-browser#readme",
+  "keywords": ["jev", "agent-browser", "browser-automation", "browser-agent", "typed-decisions", "research"],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": ["dist", "skills", "README.md", "LICENSE"],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,10 +28,13 @@
     }
   },
   "bin": {
-    "jev-agent-browser": "dist/cli.js"
+    "jev-agent-browser": "dist/cli.js",
+    "jev": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "pack:check": "npm pack --dry-run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "benchmark": "tsx scripts/benchmark.ts",
     "evaluate": "tsx scripts/evaluate.ts",
@@ -28,6 +47,9 @@
   },
   "dependencies": {
     "@typesafe-ai/sdk": "^0.6.0"
+  },
+  "peerDependencies": {
+    "agent-browser": ">=0.31.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
