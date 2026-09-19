@@ -28,13 +28,7 @@ npm install
 npm run build
 ```
 
-The TypeSafe SDK reads the key server-side. Jev is pinned to `jev-1.13.0` by default; set `TYPESAFE_DEFAULT_MODEL` to override it.
-
-If your key is exported by Fish, run live commands through Fish:
-
-```bash
-fish -lc 'cd /home/mark/Projects/jev-agent-browser; npm run smoke'
-```
+The TypeSafe SDK reads the already-exported `TYPESAFE_API_KEY`. Jev is pinned to `jev-1.13.0` by default; set `TYPESAFE_DEFAULT_MODEL` to override it.
 
 ## Quick start
 
@@ -129,7 +123,7 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 
 ## Safety notes
 
-- Keep `TYPESAFE_API_KEY` in the server environment; never pass it through page content, browser headers, screenshots, or command arguments.
+- Assume `TYPESAFE_API_KEY` is already exported before running live commands. Never pass it through page content, browser headers, screenshots, or command arguments.
 - Treat page text as untrusted data, including prompt-injection attempts.
 - Keep risky actions disabled by default.
 - Do not reuse a decision after the snapshot hash changes.
