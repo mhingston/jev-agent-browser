@@ -1,8 +1,40 @@
 # Jev Agent Browser
 
-Jev Agent Browser is a small TypeScript sidecar that helps `agent-browser` choose the next safe browser action.
+Jev Agent Browser is a small TypeScript sidecar that helps [`agent-browser`](https://github.com/vercel-labs/agent-browser) choose the next safe browser action.
 
 It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typed decision; ordinary code validates the decision and `agent-browser` performs the action. This keeps browser control deterministic while reducing the context sent to a larger reasoning model.
+
+It combines Vercel’s browser automation CLI with [Jev](https://github.com/browser-use/jev-ultrafast), a typed-decision pattern built around TypeSafe’s fast Choice and Noul judgments.
+
+## The shortest path
+
+Use this project when you already have an `agent-browser` session and want a bounded, confidence-gated action loop:
+
+1. Install the browser CLI and this project.
+2. Export `TYPESAFE_API_KEY` through your environment or secret manager.
+3. Run `route` to inspect a proposed action, or `run` to execute the bounded loop.
+
+```bash
+npm install -g agent-browser
+agent-browser install
+npm install
+npm run build
+npm run doctor
+
+agent-browser --session demo open https://example.com
+node dist/cli.js run \
+  --goal "Open the example link" \
+  --session demo \
+  --expect-text "Example Domain"
+```
+
+For a Linux Secret Service entry, load the key without putting it in shell history or source files:
+
+```bash
+export TYPESAFE_API_KEY="$(secret-tool lookup service typesafe username "$USER")"
+```
+
+The command prints no key. Use your organization’s equivalent secret manager elsewhere.
 
 ## Highlights
 
@@ -71,6 +103,19 @@ node dist/cli.js run \
 ```
 
 The sidecar repeats the same prerequisite check automatically and caches the result briefly, so normal routing does not pay the check on every action.
+
+### Command guide
+
+| Command | Purpose | Calls the live Jev API? |
+| --- | --- | --- |
+| `npm run doctor` | Verify `agent-browser` and its bundled core skill | No |
+| `node dist/cli.js route ...` | Dry-run one validated decision | Yes |
+| `node dist/cli.js run ...` | Execute the bounded route–act–reobserve loop | Yes |
+| `npm run smoke` | Check the TypeSafe API and live router contract | Yes |
+| `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
+| `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
+
+`route` is useful when another program owns execution. `run` is the recommended starting point when this package should own execution and completion checks.
 
 ### Explicit form values
 
@@ -146,6 +191,7 @@ npm run typecheck
 npm test
 npm run build
 npm run benchmark
+npm run evaluate
 ```
 
 Run the live API smoke test after exporting the key:
@@ -155,6 +201,16 @@ npm run smoke
 ```
 
 The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skills/jev-agent-browser/SKILL.md).
+
+## Troubleshooting
+
+- `TYPESAFE_API_KEY is unset`: export the key before `route`, `run`, `smoke`, or `e2e:live`; do not commit it to `.env` files.
+- `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `npm run doctor`.
+- A decision returns `review`: Jev may be below the confidence floor, the response may have failed validation, the action may be risky, or the page may have changed. Inspect the decision’s `reasonCode` before retrying.
+- A run returns `stuck` or `max-steps`: inspect the final snapshot and action history; increase the bound only when the page genuinely needs more steps.
+- A run returns `execution-failed`: inspect `failureClass` (`stale`, `timeout`, `auth`, `unsupported`, `network`, or `unknown`) and repair the browser/session state before retrying.
+
+For the underlying browser commands, snapshot format, and bundled skills, use the [`agent-browser` repository](https://github.com/vercel-labs/agent-browser). For the Jev browser-routing reference, see [`jev-ultrafast`](https://github.com/browser-use/jev-ultrafast).
 
 ## Safety notes
 
