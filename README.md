@@ -77,6 +77,7 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 | Command | Purpose | Calls the live Jev API? |
 | --- | --- | --- |
 | `npm run doctor` | Verify `agent-browser` and its bundled core skill | No |
+| `jev --url <url> --goal <text>` | Shorthand for a bounded `run` | Yes |
 | `node dist/cli.js route ...` | Dry-run one validated decision | Yes |
 | `node dist/cli.js run ...` | Execute the bounded route–act–reobserve loop | Yes |
 | `node dist/cli.js research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
@@ -84,7 +85,9 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
 
-For delegated execution, add `--plan` and `--subtask`. For existing Chrome sessions, use `--cdp`, `--auto-connect`, or `--pin-tab`. The CLI defaults to the TypeSafe SDK; compatible HTTP decision endpoints can be selected with `--transport fetch --endpoint <url>`.
+For delegated execution, add `--plan` and `--subtask`. Use `--url <url>` to open a page before `route` or `run`, or attach to an existing Chrome session with `--cdp`, `--auto-connect`, `--attach`, or `--pin-tab`. Use `--browser-command <path>` for a non-default browser executable. The CLI defaults to the TypeSafe SDK; compatible HTTP decision endpoints can be selected with `--transport fetch --endpoint <url>`.
+
+Pass `--jsonl` to stream run/research events as JSON Lines. Research also accepts `--summary` when only query results and metrics are needed.
 
 ### Library API
 

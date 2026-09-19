@@ -24,6 +24,17 @@ function riskFor(element: BrowserElement, kind: "click" | "fill" | "select" | "c
   return "read";
 }
 
+function callerValue(element: BrowserElement, inputValues: Record<string, string>): string | undefined {
+  const name = element.name.trim();
+  const normalizedName = name.toLowerCase().replace(/\s+/g, " ");
+  const role = element.role.trim().toLowerCase();
+  const keys = [element.ref, role && normalizedName ? `${role}:${normalizedName}` : "", name, normalizedName].filter(Boolean);
+  for (const key of keys) {
+    if (Object.hasOwn(inputValues, key)) return inputValues[key];
+  }
+  return undefined;
+}
+
 function candidatesForElement(
   element: BrowserElement,
   goal: string,
@@ -46,7 +57,7 @@ function candidatesForElement(
       }));
   }
   if (["textbox", "searchbox", "combobox", "spinbutton"].includes(role)) {
-    const value = inputValues[element.ref];
+    const value = callerValue(element, inputValues);
     if (value == null && /\bfocus\b/i.test(goal)) {
       return [{ id: `c${index}`, kind: "focus", ref: element.ref, label: `Focus ${role} “${element.name}”`, risk: "read" }];
     }

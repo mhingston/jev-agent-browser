@@ -26,6 +26,7 @@ Default policy:
 - `0.9` confidence plus explicit `--allow-risky` for destructive actions.
 - Repeated unchanged non-wait actions terminate the loop as `blocked` rather than retrying forever.
 - The runner can recover from Jev's stuck judgment, repeated signatures, and browser failures with bounded retries; the final `handoff` records whether a parent agent must decide next.
+- Initial snapshot, decision, and re-observation failures return structured review handoffs instead of escaping the bounded loop.
 - Inject `AgentBrowserSession` or a custom `BrowserDriver` for CDP/auto-connect/pinned-tab sessions and deterministic tests.
 - Register only caller-owned browser tools; Jev may choose a `run-tool` candidate only from that closed catalog.
 - `runResearch` and classification profiles provide bounded multi-page collection, typed batch labels, host-allowlisted follow-ups, and optional enrichment.
@@ -44,6 +45,8 @@ npm run build
 npm run doctor
 node dist/cli.js route --goal "Open the account settings" --session my-session
 node dist/cli.js run --goal "Open the account settings" --session my-session
+node dist/cli.js run --url https://example.com --goal "Open the example link" --jsonl
+jev --url https://example.com --goal "Open the example link" --max-steps 5
 npm run e2e
 npm run e2e:live
 npm run evaluate

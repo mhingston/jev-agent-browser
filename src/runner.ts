@@ -106,6 +106,13 @@ function normalizeObserved(raw: unknown, goal: string, policy: RoutePolicy): Nor
   return normalizeSnapshot(raw, goal, { maxPageTextChars: policy.maxPageTextChars, source: "agent-browser" });
 }
 
+function emptySnapshot(goal: string, policy: RoutePolicy): NormalizedSnapshot {
+  return normalizeSnapshot({ url: "", title: "", text: "", elements: [] }, goal, {
+    maxPageTextChars: policy.maxPageTextChars,
+    source: "agent-browser",
+  });
+}
+
 function signature(decision: RouteDecision): string {
   return [decision.kind, decision.ref ?? decision.toolId ?? "", decision.value ?? decision.key ?? ""].join("|");
 }
@@ -181,30 +188,43 @@ export async function runGoal(options: RunOptions): Promise<RunResult> {
   if (!Number.isInteger(maxRecoveryAttempts) || maxRecoveryAttempts < 0) throw new Error("maxRecoveryAttempts must be a non-negative integer");
 
   const browser = options.browser ?? new AgentBrowserSession({ session: options.session, binary: options.binary });
+  const history = (options.initialHistory ?? []).slice(-historyLimit);
+  const steps: RunStep[] = [];
+  const trace: RunTraceEntry[] = [];
+  emit(options.onEvent, { type: "start", goal: options.goal, plan: options.plan ?? null, subtask: options.subtask ?? options.goal });
   let snapshot: NormalizedSnapshot;
   try {
     snapshot = normalizeObserved(await browser.snapshot(), options.goal, policy);
   } catch (error) {
-    throw new Error(`browser snapshot failed: ${error instanceof Error ? error.message : String(error)}`);
+    const message = `browser snapshot failed: ${error instanceof Error ? error.message : String(error)}`;
+    const entry: RunTraceEntry = { step: 0, error: message };
+    trace.push(entry);
+    emit(options.onEvent, { type: "step", step: 0, entry });
+    return finish(options, "review", "execution-failed", emptySnapshot(options.goal, policy), steps, history, trace, undefined, classifyCommandFailure(message));
   }
-  const history = (options.initialHistory ?? []).slice(-historyLimit);
-  const steps: RunStep[] = [];
-  const trace: RunTraceEntry[] = [];
   let unchangedNonWait = 0;
   let previousSignature: string | undefined;
   let sameActionCount = 0;
   let recovery: RecoveryContext | undefined;
   let recoveryAttempts = 0;
-  emit(options.onEvent, { type: "start", goal: options.goal, plan: options.plan ?? null, subtask: options.subtask ?? options.goal });
 
   for (let index = 0; index < maxSteps; index += 1) {
     const started = Date.now();
-    const decision = await routeSnapshot(snapshot, options.inputValues ?? {}, policy, options.client, history, {
-      plan: options.plan,
-      subtask: options.subtask,
-      recovery,
-      tools: options.tools,
-    });
+    let decision: RouteDecision;
+    try {
+      decision = await routeSnapshot(snapshot, options.inputValues ?? {}, policy, options.client, history, {
+        plan: options.plan,
+        subtask: options.subtask,
+        recovery,
+        tools: options.tools,
+      });
+    } catch (error) {
+      const message = `decision request failed: ${error instanceof Error ? error.message : String(error)}`;
+      const entry: RunTraceEntry = { step: index, observation: snapshot, error: message };
+      trace.push(entry);
+      emit(options.onEvent, { type: "step", step: index, entry });
+      return finish(options, "review", "execution-failed", snapshot, steps, history, trace, undefined, classifyCommandFailure(message));
+    }
     const entry: RunTraceEntry = { step: index, observation: snapshot, decision };
     trace.push(entry);
 
@@ -222,17 +242,41 @@ export async function runGoal(options: RunOptions): Promise<RunResult> {
       return finish(options, "blocked", "recovery-exhausted", snapshot, steps, history, trace, decision);
     }
     if (decision.kind === "stop") {
-      const verified = options.verifyCompletion ? await options.verifyCompletion(snapshot) : true;
+      let verified = true;
+      if (options.verifyCompletion) {
+        try { verified = await options.verifyCompletion(snapshot); }
+        catch { verified = false; }
+      }
       entry.action = { executed: false, reason: verified ? "goal-complete" : "completion-unverified" };
+      if (!verified && recoveryAttempts < maxRecoveryAttempts) {
+        recoveryAttempts += 1;
+        recovery = { reason: "uncertain-completion", attempt: recoveryAttempts, avoid: ["stop|"], instruction: "The subtask is not proven complete; inspect the page and take a different useful action." };
+        history.push({ kind: "review", pageChanged: false, snapshotHash: snapshot.snapshotHash });
+        while (history.length > historyLimit) history.shift();
+        emit(options.onEvent, { type: "recovery", step: index, recovery });
+        emit(options.onEvent, { type: "step", step: index, entry });
+        continue;
+      }
       emit(options.onEvent, { type: "step", step: index, entry });
       return verified
         ? finish(options, "completed", "goal-complete", snapshot, steps, history, trace, decision)
         : finish(options, "review", "review", snapshot, steps, history, trace, decision);
     }
     if (decision.fallback || decision.kind === "review") {
+      const recoverable = decision.reasonCode === "invalid-response" || decision.reasonCode === "unknown-candidate";
+      if (recoverable && recoveryAttempts < maxRecoveryAttempts) {
+        recoveryAttempts += 1;
+        recovery = { reason: "invalid-decision", attempt: recoveryAttempts, instruction: "Re-evaluate the current page and choose a valid offered operation and target." };
+        entry.action = { executed: false, reason: "local-recovery", recoveryAttempt: recoveryAttempts };
+        history.push({ kind: "review", pageChanged: false, snapshotHash: snapshot.snapshotHash });
+        while (history.length > historyLimit) history.shift();
+        emit(options.onEvent, { type: "recovery", step: index, recovery });
+        emit(options.onEvent, { type: "step", step: index, entry });
+        continue;
+      }
       entry.action = { executed: false, reason: "review" };
       emit(options.onEvent, { type: "step", step: index, entry });
-      return finish(options, "review", "review", snapshot, steps, history, trace, decision);
+      return finish(options, recoverable && recoveryAttempts > 0 ? "blocked" : "review", recoverable && recoveryAttempts > 0 ? "recovery-exhausted" : "review", snapshot, steps, history, trace, decision);
     }
 
     const actionSignature = signature(decision);
@@ -250,7 +294,16 @@ export async function runGoal(options: RunOptions): Promise<RunResult> {
       return finish(options, "blocked", "loop-detected", snapshot, steps, history, trace, decision);
     }
 
-    const preAction = normalizeObserved(await browser.snapshot(), options.goal, policy);
+    let preAction: NormalizedSnapshot;
+    try {
+      preAction = normalizeObserved(await browser.snapshot(), options.goal, policy);
+    } catch (error) {
+      const message = `browser pre-action snapshot failed: ${error instanceof Error ? error.message : String(error)}`;
+      entry.action = { executed: false, reason: "snapshot-failed", error: message };
+      entry.error = message;
+      emit(options.onEvent, { type: "step", step: index, entry });
+      return finish(options, "review", "execution-failed", snapshot, steps, history, trace, decision, classifyCommandFailure(message));
+    }
     if (preAction.snapshotHash !== snapshot.snapshotHash) {
       entry.action = { executed: false, reason: "stale-snapshot" };
       emit(options.onEvent, { type: "step", step: index, entry });
@@ -319,7 +372,16 @@ export async function runGoal(options: RunOptions): Promise<RunResult> {
       return finish(options, "review", "execution-failed", snapshot, steps, history, trace, decision, failureClass);
     }
 
-    const nextSnapshot = normalizeObserved(await browser.snapshot(), options.goal, policy);
+    let nextSnapshot: NormalizedSnapshot;
+    try {
+      nextSnapshot = normalizeObserved(await browser.snapshot(), options.goal, policy);
+    } catch (error) {
+      const message = `browser post-action snapshot failed: ${error instanceof Error ? error.message : String(error)}`;
+      entry.action = { executed: true, result: execution, error: message, signature: actionSignature, durationMs: Date.now() - started };
+      entry.error = message;
+      emit(options.onEvent, { type: "step", step: index, entry });
+      return finish(options, "review", "execution-failed", snapshot, steps, history, trace, executableDecision, classifyCommandFailure(message));
+    }
     const pageChanged = nextSnapshot.snapshotHash !== snapshot.snapshotHash;
     const step: RunStep = {
       index: index + 1,

@@ -166,4 +166,57 @@ describe("agent-browser run orchestration", () => {
     expect(result.reason).toBe("execution-failed");
     expect(result.failureClass).toBe("timeout");
   });
+
+  it("returns a structured handoff when the initial snapshot fails", async () => {
+    const browser: BrowserDriver = {
+      async snapshot() { throw new Error("timed out connecting to browser"); },
+      async execute() { return null; },
+    };
+    const result = await runGoal({ goal: "Inspect the page", browser, client: routeClient() });
+    expect(result.status).toBe("review");
+    expect(result.reason).toBe("execution-failed");
+    expect(result.failureClass).toBe("timeout");
+    expect(result.handoff.parentDecisionRequired).toBe(true);
+    expect(result.handoff.currentUrl).toBeNull();
+  });
+
+  it("bounds recovery after malformed decision responses", async () => {
+    const result = await runGoal({
+      goal: "Recover from malformed decisions",
+      browser: new FixtureBrowser(),
+      client: { async systemOne() { throw new Error("decision service unavailable"); } },
+      maxRecoveryAttempts: 1,
+      maxSteps: 3,
+    });
+    expect(result.status).toBe("blocked");
+    expect(result.reason).toBe("recovery-exhausted");
+    expect(result.handoff.parentDecisionRequired).toBe(true);
+  });
+
+  it("recovers once when completion is uncertain", async () => {
+    const result = await runGoal({
+      goal: "Verify an invisible completion",
+      browser: new FixtureBrowser(),
+      client: {
+        async systemOne(request) {
+          const state = request.state as { candidates: Array<{ id: string; kind: string }> };
+          const operations = [...new Set(state.candidates.map((candidate) => candidate.kind))];
+          return {
+            model: "fixture",
+            answers: {
+              operation: { choice: "stop", confidence: 0.95, probabilities: Object.fromEntries(operations.map((operation) => [operation, operation === "stop" ? 0.9 : 0.1 / (operations.length - 1)])) },
+              goal_completed: { noul: 0.95 },
+              stuck: { noul: 0.01 },
+            },
+          };
+        },
+      },
+      maxRecoveryAttempts: 1,
+      maxSteps: 3,
+      verifyCompletion: () => false,
+    });
+    expect(result.status).toBe("review");
+    expect(result.reason).toBe("review");
+    expect(result.trace).toHaveLength(2);
+  });
 });

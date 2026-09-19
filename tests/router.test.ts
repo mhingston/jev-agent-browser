@@ -72,6 +72,12 @@ describe("agent-browser Jev router", () => {
     expect(buildCandidates(snapshot, { __press__: "Enter" }).find((candidate) => candidate.kind === "press")?.key).toBe("Enter");
   });
 
+  it("accepts caller values by field name or normalized role/name key", () => {
+    const snapshot = normalizeSnapshot(rawSnapshot, "Change the name", { source: "fixture" });
+    expect(buildCandidates(snapshot, { "Display name": "Mark" }).find((candidate) => candidate.ref === "@e1")?.value).toBe("Mark");
+    expect(buildCandidates(snapshot, { "textbox:display name": "M" }).find((candidate) => candidate.ref === "@e1")?.value).toBe("M");
+  });
+
   it("offers semantic navigation candidates only when requested", () => {
     const snapshot = normalizeSnapshot({ ...rawSnapshot, text: "Page" }, "Go back and refresh the page", { source: "fixture" });
     const candidates = buildCandidates(snapshot);

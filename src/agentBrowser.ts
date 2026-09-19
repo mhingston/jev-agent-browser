@@ -60,7 +60,7 @@ export function runAgentBrowser(
   if (options.browserArgs?.some((arg) => typeof arg !== "string")) {
     return Promise.reject(new Error("browserArgs must be an array of strings"));
   }
-  const wrapperOwnedArgs = new Set(["--session", "--cdp", "--auto-connect", "--pin-tab"]);
+  const wrapperOwnedArgs = new Set(["--session", "--session-name", "--cdp", "--auto-connect", "--pin-tab", "--no-pin-tab"]);
   if (options.browserArgs?.some((arg) => wrapperOwnedArgs.has(arg.split("=", 1)[0]))) {
     return Promise.reject(new Error("browserArgs cannot override session or connection options"));
   }
