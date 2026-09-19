@@ -210,8 +210,6 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 - A run returns `stuck` or `max-steps`: inspect the final snapshot and action history; increase the bound only when the page genuinely needs more steps.
 - A run returns `execution-failed`: inspect `failureClass` (`stale`, `timeout`, `auth`, `unsupported`, `network`, or `unknown`) and repair the browser/session state before retrying.
 
-For the underlying browser commands, snapshot format, and bundled skills, use the [`agent-browser` repository](https://github.com/vercel-labs/agent-browser). For the Jev browser-routing reference, see [`jev-ultrafast`](https://github.com/browser-use/jev-ultrafast).
-
 ## Safety notes
 
 - Assume `TYPESAFE_API_KEY` is already exported before running live commands. Never pass it through page content, browser headers, screenshots, or command arguments.
