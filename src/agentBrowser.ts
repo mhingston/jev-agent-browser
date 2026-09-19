@@ -1,10 +1,20 @@
 import { spawn } from "node:child_process";
-import type { RouteDecision } from "./types.js";
+import type { BrowserFailureKind, RouteDecision } from "./types.js";
 
 export interface CommandResult {
   code: number;
   stdout: string;
   stderr: string;
+}
+
+export function classifyCommandFailure(result: Pick<CommandResult, "stdout" | "stderr"> | string): BrowserFailureKind {
+  const text = typeof result === "string" ? result : `${result.stdout}\n${result.stderr}`;
+  if (/stale|ref not found|element not found|target changed|covered/i.test(text)) return "stale";
+  if (/timeout|timed out|networkidle/i.test(text)) return "timeout";
+  if (/unauthori[sz]ed|forbidden|login|sign[ -]?in|credential|cookie/i.test(text)) return "auth";
+  if (/unknown command|unsupported|not supported|cannot select|upload/i.test(text)) return "unsupported";
+  if (/network|connection|econn|dns/i.test(text)) return "network";
+  return "unknown";
 }
 
 export interface AgentBrowserPreflight {
@@ -83,9 +93,14 @@ export function clearAgentBrowserPreflightCache(): void {
   preflightCache = undefined;
 }
 
-export async function captureSnapshot(session?: string): Promise<unknown> {
-  await checkAgentBrowser();
-  const result = await runAgentBrowser(["snapshot", "-i", "--json"], { session });
+export function captureSnapshot(session?: string): Promise<unknown>;
+export function captureSnapshot(options?: { session?: string; binary?: string }): Promise<unknown>;
+export async function captureSnapshot(optionsOrSession: string | { session?: string; binary?: string } = {}): Promise<unknown> {
+  const options = typeof optionsOrSession === "string" ? { session: optionsOrSession } : optionsOrSession;
+  await checkAgentBrowser({ binary: options.binary });
+  // Keep the full accessibility text for postconditions; normalizeSnapshot still
+  // filters structural nodes before sending candidates to Jev.
+  const result = await runAgentBrowser(["snapshot", "--json"], options);
   if (result.code !== 0) throw new Error(`agent-browser snapshot failed: ${result.stderr.trim() || `exit ${result.code}`}`);
   try {
     return JSON.parse(result.stdout);
@@ -100,10 +115,26 @@ export function commandForDecision(decision: RouteDecision): string[] | null {
       return decision.ref ? ["click", decision.ref] : null;
     case "fill":
       return decision.ref && decision.value != null ? ["fill", decision.ref, decision.value] : null;
+    case "select":
+      return decision.ref && decision.value != null ? ["select", decision.ref, decision.value] : null;
+    case "check":
+      return decision.ref ? ["check", decision.ref] : null;
+    case "uncheck":
+      return decision.ref ? ["uncheck", decision.ref] : null;
+    case "hover":
+      return decision.ref ? ["hover", decision.ref] : null;
+    case "focus":
+      return decision.ref ? ["focus", decision.ref] : null;
     case "press":
       return decision.key ? ["press", decision.key] : null;
     case "scroll":
       return ["scroll", decision.direction ?? "down", String(decision.pixels ?? 600)];
+    case "back":
+      return ["back"];
+    case "forward":
+      return ["forward"];
+    case "reload":
+      return ["reload"];
     case "wait":
       return ["wait", "--load", "networkidle"];
     case "stop":

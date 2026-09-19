@@ -6,12 +6,18 @@ It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typ
 
 ## Highlights
 
-- Compact `agent-browser snapshot -i --json` normalization
+- Compact accessibility normalization with full visible text for postconditions
 - One batched TypeSafe request per browser state
-- Typed action routing: click, fill, press, scroll, wait, stop, or review
+- Dynamic operation + target routing: click, fill, select, check, uncheck, hover, focus, press, scroll, back, forward, reload, wait, stop, or review
 - Goal-completion detection with a separate Noul judgment
-- Confidence thresholds and explicit destructive-action gates
+- Strict probability-map validation, confidence thresholds, and explicit destructive-action gates
 - Snapshot fingerprints that prevent stale `@eN` refs from being executed
+- Bounded route–execute–reobserve loops with recent-action history and stuck detection
+- Optional caller-supplied text provider for non-sensitive generated field values
+- Optional Jev post-action verifier and structured browser-failure classification
+- Optional Jev context sieve that keeps relevant page blocks and leaves recall stubs
+- Closed-catalog Jev tool routing for selecting among registered skills/tools
+- Offline confidence calibration helpers (Brier score, reliability bins, ECE)
 - Short-lived route caching and usage/latency reporting
 - No API key or generated form values are exposed to the browser
 
@@ -53,7 +59,16 @@ node dist/cli.js run \
   --session demo
 ```
 
-The runner refuses low-confidence, unsafe, or stale decisions. Re-snapshot after every page-changing action because `@eN` refs are page-state specific.
+The runner re-snapshots after every action and refuses low-confidence, unsafe, malformed, or stale decisions. It stops after repeated unchanged non-wait actions or an exhausted step budget. `@eN` refs remain page-state specific.
+
+For a deterministic completion check, add an expected visible string:
+
+```bash
+node dist/cli.js run \
+  --goal "Open the example link" \
+  --session demo \
+  --expect-text "Example Domain"
+```
 
 The sidecar repeats the same prerequisite check automatically and caches the result briefly, so normal routing does not pay the check on every action.
 
@@ -79,25 +94,35 @@ node dist/cli.js route \
 
 Destructive actions return `review` unless `--allow-risky` is supplied and the higher confidence threshold is met.
 
+The `select` operation is offered only when the snapshot contains observed dropdown options. Jev chooses an option from that observed set; it never invents option values.
+
+Checkboxes and switches use state-aware `check`/`uncheck` actions when the goal names the desired state. A library caller may opt into generated text with `policy.allowGeneratedText` and a `textProvider`; password-, credential-, token-, and secret-like fields are always rejected.
+
+For higher-assurance loops, pass `jevPostActionVerifier(client)` as `postActionVerifier`. It sends only the action metadata, command result, and before/after page evidence; field values are excluded. Browser failures are classified as `stale`, `timeout`, `auth`, `unsupported`, `network`, or `unknown` for bounded recovery or review.
+
+For long or noisy pages, a library caller may opt into `policy.enableContextSieve`. Jev scores bounded text blocks, while code always retains the first/last and error-like blocks and inserts ordered `[context block ... omitted]` stubs for dropped content. The sieve fails open if its response is unavailable or malformed. `src/toolRouter.ts` provides the same closed-catalog pattern for routing a goal to registered tools or skills without allowing invented IDs.
+
+The CLI equivalent is `--context-sieve`, with optional `--context-threshold <n>` and `--max-context-blocks <n>`.
+
 ## How it works
 
 ```text
 agent-browser snapshot
         │
         ▼
-compact state + bounded candidates
+compact state + bounded operation/target action space
         │
         ▼
-Jev Choice: next action  +  Jev Noul: goal complete?
+Jev Choice: operation + target  +  Jev Noul: goal complete?
         │
         ▼
-confidence/risk/staleness checks
+response/confidence/risk/staleness checks
         │
         ▼
-validated agent-browser command or review
+validated command → re-snapshot → postcondition/history check
 ```
 
-Code owns candidate extraction, command construction, arithmetic, thresholds, risk policy, and execution. Jev supplies only semantic judgments over the current state.
+Code owns candidate extraction, operation/target mapping, response validation, command construction, arithmetic, thresholds, risk policy, loop bounds, and execution. Jev supplies only semantic judgments over the current state.
 
 ## Performance
 
@@ -106,6 +131,11 @@ The included offline benchmark compares noisy browser state with the compact sta
 ```bash
 npm run benchmark
 ```
+
+The browser fixture E2E check is available with `npm run e2e`.
+With `TYPESAFE_API_KEY` exported, `npm run e2e:live` runs the same one-action fixture through the real Jev API.
+
+Use `npm run evaluate` to print a small calibration report, or import `calibrationReport` for a labelled fixture set from your own routes.
 
 The current fixtures show roughly 74% fewer serialized state characters. Live responses expose exact `usage.input_tokens`, `usage.output_tokens`, model, and latency so you can measure your own pages.
 
@@ -133,3 +163,4 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 - Keep risky actions disabled by default.
 - Do not reuse a decision after the snapshot hash changes.
 - Use `review` as the fallback whenever Jev is uncertain or no safe action is clear.
+- Treat a completion judgment as evidence, not proof; supply `--expect-text` or the library `verifyCompletion` callback when an exact postcondition is available.

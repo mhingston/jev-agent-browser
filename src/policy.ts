@@ -10,6 +10,10 @@ export const DEFAULT_POLICY: RoutePolicy = {
   maxLabelChars: 160,
   maxPageTextChars: 2000,
   cacheTtlMs: 5000,
+  allowGeneratedText: false,
+  enableContextSieve: false,
+  contextSieveThreshold: 0.25,
+  maxContextBlocks: 12,
 };
 
 export function resolvePolicy(input?: Partial<RoutePolicy>): RoutePolicy {
@@ -25,6 +29,12 @@ export function resolvePolicy(input?: Partial<RoutePolicy>): RoutePolicy {
   }
   if (!Number.isInteger(result.maxCandidates) || result.maxCandidates < 1) {
     throw new Error("maxCandidates must be a positive integer");
+  }
+  if (!Number.isInteger(result.maxContextBlocks) || result.maxContextBlocks < 1) {
+    throw new Error("maxContextBlocks must be a positive integer");
+  }
+  if (!(result.contextSieveThreshold >= 0 && result.contextSieveThreshold <= 1)) {
+    throw new Error("contextSieveThreshold must be between 0 and 1");
   }
   return result;
 }

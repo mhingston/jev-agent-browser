@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "jev-agent-browser": "dist/cli.js"
   },
@@ -10,6 +18,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "benchmark": "tsx scripts/benchmark.ts",
+    "evaluate": "tsx scripts/evaluate.ts",
+    "e2e": "tsx scripts/e2e.ts",
+    "e2e:live": "tsx scripts/e2e-live.ts",
     "doctor": "node dist/cli.js doctor",
     "smoke": "tsx scripts/smoke.ts",
     "test": "vitest run",

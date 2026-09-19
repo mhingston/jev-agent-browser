@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-import { captureSnapshot, checkAgentBrowser, executeDecision } from "./agentBrowser.js";
+import { captureSnapshot, checkAgentBrowser } from "./agentBrowser.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { routeSnapshot } from "./router.js";
+import { runGoal } from "./runner.js";
 
 function usage(): never {
   console.error(`Usage:
   jev-agent-browser doctor
-  jev-agent-browser route --goal <text> [--session <id>] [--input-values <json>] [--allow-risky]
-  jev-agent-browser run --goal <text> [--session <id>] [--input-values <json>] [--allow-risky]
+  jev-agent-browser route --goal <text> [--session <id>] [--input-values <json>] [--allow-risky] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>]
+  jev-agent-browser run --goal <text> [--session <id>] [--input-values <json>] [--allow-risky] [--max-steps <n>] [--expect-text <text>] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>]
 
 The route command is dry-run. The run command executes only a validated, non-review decision.`);
   process.exit(2);
@@ -35,15 +36,36 @@ async function main(): Promise<void> {
     catch { throw new Error("--input-values must be valid JSON"); }
   }
   const allowRisky = args.includes("--allow-risky");
-  const raw = await captureSnapshot(session);
-  const snapshot = normalizeSnapshot(raw, goal);
-  const decision = await routeSnapshot(snapshot, inputValues, { allowRisky });
-
-  if (command === "run" && !decision.fallback && decision.kind !== "stop") {
-    const result = await executeDecision(decision, { session, currentSnapshotHash: snapshot.snapshotHash });
-    console.log(JSON.stringify({ decision, execution: result }, null, 2));
+  const contextSieve = args.includes("--context-sieve");
+  const contextThresholdText = argValue(args, "--context-threshold");
+  const maxContextBlocksText = argValue(args, "--max-context-blocks");
+  const contextSieveThreshold = contextThresholdText == null ? undefined : Number(contextThresholdText);
+  const maxContextBlocks = maxContextBlocksText == null ? undefined : Number(maxContextBlocksText);
+  if (contextThresholdText != null && !Number.isFinite(contextSieveThreshold)) throw new Error("--context-threshold must be a number");
+  if (maxContextBlocksText != null && (!Number.isInteger(maxContextBlocks) || maxContextBlocks! < 1)) throw new Error("--max-context-blocks must be a positive integer");
+  const policy = { allowRisky, enableContextSieve: contextSieve, ...(contextSieveThreshold == null ? {} : { contextSieveThreshold }), ...(maxContextBlocks == null ? {} : { maxContextBlocks }) };
+  if (command === "run") {
+    const maxStepsText = argValue(args, "--max-steps");
+    const maxSteps = maxStepsText == null ? undefined : Number(maxStepsText);
+    if (maxStepsText != null && (maxSteps == null || !Number.isInteger(maxSteps) || maxSteps < 1)) throw new Error("--max-steps must be a positive integer");
+    const expectedText = argValue(args, "--expect-text");
+    const result = await runGoal({
+      goal,
+      session,
+      inputValues,
+      policy,
+      maxSteps,
+      verifyCompletion: expectedText
+        ? (snapshot) => snapshot.pageText.includes(expectedText) || snapshot.title.includes(expectedText)
+        : undefined,
+    });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
+  const raw = await captureSnapshot({ session });
+  const snapshot = normalizeSnapshot(raw, goal);
+  const decision = await routeSnapshot(snapshot, inputValues, policy);
+
   console.log(JSON.stringify({ decision }, null, 2));
 }
 

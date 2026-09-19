@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { BrowserElement, NormalizedSnapshot } from "./types.js";
+import type { BrowserElement, BrowserOption, NormalizedSnapshot } from "./types.js";
 
 const INTERACTIVE_ROLES = new Set([
   "button",
@@ -55,6 +55,26 @@ function firstString(record: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+function readOptions(record: Record<string, unknown>): BrowserOption[] | undefined {
+  const raw = record.options ?? record.items ?? record.choices;
+  if (!Array.isArray(raw)) return undefined;
+  const options: BrowserOption[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const option = item as Record<string, unknown>;
+    const value = firstString(option, ["value", "id", "key"]);
+    const label = firstString(option, ["label", "name", "text", "value"]);
+    if (!value && !label) continue;
+    options.push({
+      value: value || label,
+      label: label || value,
+      ...(typeof option.disabled === "boolean" ? { disabled: option.disabled } : {}),
+      ...(typeof option.selected === "boolean" ? { selected: option.selected } : {}),
+    });
+  }
+  return options.length ? options : undefined;
+}
+
 function collectNodeObjects(value: unknown, result: Record<string, unknown>[]): void {
   if (!value || typeof value !== "object") return;
   if (Array.isArray(value)) {
@@ -97,6 +117,8 @@ function toElement(record: Record<string, unknown>): BrowserElement | null {
   const href = firstString(record, ["href", "url"]);
   if (value) element.value = clamp(value, 160);
   if (href) element.href = clamp(href, 500);
+  const options = readOptions(record);
+  if (options) element.options = options;
   if (typeof record.disabled === "boolean") element.disabled = record.disabled;
   if (typeof record.checked === "boolean") element.checked = record.checked;
   if (typeof record.selected === "boolean") element.selected = record.selected;
@@ -138,6 +160,24 @@ export function normalizeSnapshot(
     if (!element || seen.has(element.ref)) continue;
     seen.add(element.ref);
     elements.push(element);
+  }
+
+  // agent-browser exposes native <select> options as sibling option refs
+  // rather than embedding them on the combobox record. Preserve the observed
+  // option set as select candidates and avoid offering duplicate option clicks.
+  const optionElements = elements.filter((element) => element.role === "option");
+  const comboboxes = elements.filter((element) => element.role === "combobox" && !element.options?.length);
+  if (optionElements.length && comboboxes.length) {
+    const inferredOptions = optionElements.map((option) => ({
+      value: option.value || option.name,
+      label: option.name,
+      ...(typeof option.disabled === "boolean" ? { disabled: option.disabled } : {}),
+      ...(typeof option.selected === "boolean" ? { selected: option.selected } : {}),
+    }));
+    for (const combobox of comboboxes) combobox.options = inferredOptions;
+    for (let index = elements.length - 1; index >= 0; index -= 1) {
+      if (elements[index].role === "option") elements.splice(index, 1);
+    }
   }
 
   const base = {
