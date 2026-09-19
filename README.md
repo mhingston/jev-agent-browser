@@ -4,7 +4,7 @@ Jev Agent Browser is a small TypeScript sidecar that helps [`agent-browser`](htt
 
 It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typed decision; ordinary code validates the decision and `agent-browser` performs the action. This keeps browser control deterministic while reducing the context sent to a larger reasoning model.
 
-It combines Vercel’s browser automation CLI with [Jev](https://github.com/browser-use/jev-ultrafast), a typed-decision pattern built around TypeSafe’s fast Choice and Noul judgments.
+It combines Vercel’s browser automation CLI with [TypeSafe AI’s Jev](https://typesafe.ai/), a typed-decision pattern built around fast Choice and Noul judgments.
 
 ## The shortest path
 
