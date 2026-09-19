@@ -1,0 +1,26 @@
+{
+  "name": "jev-agent-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jev-agent-browser": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
