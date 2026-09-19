@@ -6,21 +6,29 @@ It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typ
 
 It combines Vercel’s browser automation CLI with [TypeSafe AI’s Jev](https://typesafe.ai/), a typed-decision pattern built around fast Choice and Noul judgments.
 
-## The shortest path
+## Install and quick start
 
-Use this project when you already have an `agent-browser` session and want a bounded, confidence-gated action loop:
+Use this project when you want a bounded, confidence-gated action loop around [`agent-browser`](https://github.com/vercel-labs/agent-browser).
 
-1. Install the browser CLI and this project.
-2. Export `TYPESAFE_API_KEY` through your environment or secret manager.
-3. Run `route` to inspect a proposed action, or `run` to execute the bounded loop.
+Requirements:
+
+- Node.js 20 or newer
+- `agent-browser` 0.31.x or newer on `PATH`
+- A TypeSafe API key exported as `TYPESAFE_API_KEY`
+
+From a checkout of this repository:
 
 ```bash
+git clone https://github.com/mhingston/jev-agent-browser.git
+cd jev-agent-browser
+
 npm install -g agent-browser
 agent-browser install
 npm install
 npm run build
 npm run doctor
 
+export TYPESAFE_API_KEY="$(secret-tool lookup service typesafe username "$USER")"
 agent-browser --session demo open https://example.com
 node dist/cli.js run \
   --goal "Open the example link" \
@@ -28,72 +36,30 @@ node dist/cli.js run \
   --expect-text "Example Domain"
 ```
 
-For a Linux Secret Service entry, load the key without putting it in shell history or source files:
+The Secret Service command keeps the key out of shell history and source files; use your organization’s equivalent secret manager elsewhere. The TypeSafe SDK reads the exported key and defaults to `jev-1.13.0`; set `TYPESAFE_DEFAULT_MODEL` to override it.
+
+`doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
+
+The package metadata is ready for an npm release, but this repository remains `private` until a non-conflicting package name or npm scope is selected. Until then, use the checked-out CLI commands above.
+
+### Why use it
+
+- Code owns candidate extraction, probability validation, risk gates, snapshot freshness, execution, and loop bounds.
+- Jev supplies narrow semantic judgments over a compact accessibility state. The core router batches its operation, target, completion, and stuck questions; optional sieves and verifiers add their own requests.
+- The runner supports recovery, structured handoffs, allowlisted browser tools, and optional post-action verification.
+- Research callers can collect across pages, deduplicate items, classify them in batches, and restrict follow-ups by host.
+
+### First route
+
+`route` is dry-run: it prints a JSON decision without executing it. Use `run` when the decision should be applied:
 
 ```bash
-export TYPESAFE_API_KEY="$(secret-tool lookup service typesafe username "$USER")"
-```
-
-The command prints no key. Use your organization’s equivalent secret manager elsewhere.
-
-## Highlights
-
-- Compact accessibility normalization with full visible text for postconditions
-- One batched TypeSafe request per browser state
-- Dynamic operation + target routing: click, fill, select, check, uncheck, hover, focus, press, scroll, back, forward, reload, wait, stop, or review
-- Goal-completion detection with a separate Noul judgment
-- Strict probability-map validation, confidence thresholds, and explicit destructive-action gates
-- Snapshot fingerprints that prevent stale `@eN` refs from being executed
-- Bounded route–execute–reobserve loops with recent-action history and stuck detection
-- Optional caller-supplied text provider for non-sensitive generated field values
-- Optional Jev post-action verifier and structured browser-failure classification
-- Optional Jev context sieve that keeps relevant page blocks and leaves recall stubs
-- Closed-catalog Jev tool routing for selecting among registered skills/tools
-- Offline confidence calibration helpers (Brier score, reliability bins, ECE)
-- Short-lived route caching and usage/latency reporting
-- No API key or generated form values are exposed to the browser
-
-## Requirements
-
-- Node.js 20 or newer
-- `agent-browser` 0.31.x or newer on `PATH`
-- A TypeSafe API key exported as `TYPESAFE_API_KEY`
-
-## Install
-
-```bash
-npm install
-npm run build
-npm run doctor
-```
-
-The TypeSafe SDK reads the already-exported `TYPESAFE_API_KEY`. Jev is pinned to `jev-1.13.0` by default; set `TYPESAFE_DEFAULT_MODEL` to override it.
-
-The package metadata is prepared for an npm release, but this repository remains `private` until a non-conflicting package name or npm scope is selected. Until then, use the checked-out CLI commands above.
-
-`doctor` verifies that the `agent-browser` binary is executable and that its bundled core skill can be loaded. If it fails, install the browser tool with `npm i -g agent-browser && agent-browser install`.
-
-## Quick start
-
-Open a page with `agent-browser`, then ask Jev for a validated next action:
-
-```bash
-agent-browser --session demo open https://example.com
-
 node dist/cli.js route \
   --goal "Open the example link" \
   --session demo
 ```
 
-`route` is dry-run: it prints a JSON decision without executing it. Use `run` when the decision should be applied:
-
-```bash
-node dist/cli.js run \
-  --goal "Open the example link" \
-  --session demo
-```
-
-The runner re-snapshots after every action and refuses low-confidence, unsafe, malformed, or stale decisions. It stops after repeated unchanged non-wait actions or an exhausted step budget. `@eN` refs remain page-state specific.
+The runner re-snapshots before and after every action and refuses low-confidence, unsafe, malformed, or stale decisions. It stops after repeated unchanged non-wait actions or an exhausted step budget. `@eN` refs remain page-state specific.
 
 For a deterministic completion check, add an expected visible string:
 
@@ -104,7 +70,7 @@ node dist/cli.js run \
   --expect-text "Example Domain"
 ```
 
-The sidecar repeats the same prerequisite check automatically and caches the result briefly, so normal routing does not pay the check on every action.
+The browser preflight is cached briefly, so normal routing does not repeatedly check the local `agent-browser` installation. The expected-text verifier still runs when the loop checks completion.
 
 ### Command guide
 
@@ -118,16 +84,14 @@ The sidecar repeats the same prerequisite check automatically and caches the res
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
 
-`route` is useful when another program owns execution. `run` is the recommended starting point when this package should own execution and completion checks.
-
 For delegated execution, add `--plan` and `--subtask`. For existing Chrome sessions, use `--cdp`, `--auto-connect`, or `--pin-tab`. The CLI defaults to the TypeSafe SDK; compatible HTTP decision endpoints can be selected with `--transport fetch --endpoint <url>`.
 
 ### Library API
 
-The same loop can be embedded in a Node agent. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
+The same loop can be embedded in a Node agent. After building this checkout, import from `./dist/index.js`; after an npm release, use the package name. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
 
 ```ts
-import { AgentBrowserSession, createDecisionClient, runGoal } from "jev-agent-browser";
+import { AgentBrowserSession, createDecisionClient, runGoal } from "./dist/index.js";
 
 const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
 const client = createDecisionClient({ transport: "typesafe" });
@@ -166,7 +130,11 @@ Tool source is caller-owned and allowlisted. Keep write-capable tools out of the
 
 For bounded multi-page research, provide queries, an explicit classification profile, and optional collecting tools. The runner deduplicates collected items, batches typed Choice questions, applies profile overrides, restricts follow-up URLs to allowed hosts, and can enrich kept contact evidence.
 
+Continuing the previous example, the library runner can also collect and classify evidence across pages:
+
 ```ts
+import { runResearch } from "./dist/index.js";
+
 const result = await runResearch({
   browser,
   client,
@@ -186,6 +154,31 @@ const result = await runResearch({
 ```
 
 Use `loadResearchConfig("./research.json")` when the profile and tool paths should live in a checked-in config file.
+
+For the CLI, a minimal `research.json` can look like this:
+
+```json
+{
+  "queries": [{ "url": "https://example.com/jobs", "goal": "Collect relevant roles" }],
+  "tools": {
+    "extract-results": {
+      "path": "./tools/extract-results.js",
+      "description": "Extract visible result cards",
+      "collect": true
+    }
+  },
+  "profile": {
+    "dimensions": {
+      "relevance": {
+        "instructions": "Is this role relevant?",
+        "choices": { "yes": "Relevant", "no": "Not relevant" }
+      }
+    }
+  }
+}
+```
+
+Run it with `node dist/cli.js research --config ./research.json --session demo`.
 
 ### Explicit form values
 
@@ -246,9 +239,6 @@ The included offline benchmark compares noisy browser state with the compact sta
 ```bash
 npm run benchmark
 ```
-
-The browser fixture E2E check is available with `npm run e2e`.
-With `TYPESAFE_API_KEY` exported, `npm run e2e:live` runs the same one-action fixture through the real Jev API.
 
 Use `npm run evaluate` to print a small calibration report, or import `calibrationReport` for a labelled fixture set from your own routes.
 
