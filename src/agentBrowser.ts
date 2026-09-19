@@ -7,6 +7,15 @@ export interface CommandResult {
   stderr: string;
 }
 
+export interface AgentBrowserPreflight {
+  binary: string;
+  version: string;
+  coreSkill: "available";
+}
+
+let preflightCache: { binary: string; expiresAt: number; result: AgentBrowserPreflight } | undefined;
+const PREFLIGHT_CACHE_MS = 30_000;
+
 export function agentBrowserArgs(session: string | undefined, args: string[]): string[] {
   return session ? ["--session", session, ...args] : args;
 }
@@ -28,7 +37,54 @@ export function runAgentBrowser(
   });
 }
 
+function binaryFor(options: { binary?: string } = {}): string {
+  return options.binary ?? process.env.AGENT_BROWSER_BIN ?? "agent-browser";
+}
+
+export async function checkAgentBrowser(
+  options: { binary?: string; force?: boolean } = {},
+): Promise<AgentBrowserPreflight> {
+  const binary = binaryFor(options);
+  const now = Date.now();
+  if (!options.force && preflightCache?.binary === binary && preflightCache.expiresAt > now) {
+    return preflightCache.result;
+  }
+
+  let versionResult: CommandResult;
+  try {
+    versionResult = await runAgentBrowser(["--version"], { binary });
+  } catch {
+    throw new Error("agent-browser is not installed or executable. Install it with `npm i -g agent-browser && agent-browser install`.");
+  }
+  if (versionResult.code !== 0) {
+    throw new Error(`agent-browser could not run --version: ${versionResult.stderr.trim() || `exit ${versionResult.code}`}`);
+  }
+
+  let coreSkillResult: CommandResult;
+  try {
+    coreSkillResult = await runAgentBrowser(["skills", "get", "core"], { binary });
+  } catch {
+    throw new Error("agent-browser is present, but its bundled core skill could not be loaded. Reinstall or upgrade agent-browser.");
+  }
+  if (coreSkillResult.code !== 0) {
+    throw new Error(`agent-browser core skill is unavailable: ${coreSkillResult.stderr.trim() || `exit ${coreSkillResult.code}`}`);
+  }
+
+  const result: AgentBrowserPreflight = {
+    binary,
+    version: versionResult.stdout.trim() || versionResult.stderr.trim(),
+    coreSkill: "available",
+  };
+  preflightCache = { binary, expiresAt: now + PREFLIGHT_CACHE_MS, result };
+  return result;
+}
+
+export function clearAgentBrowserPreflightCache(): void {
+  preflightCache = undefined;
+}
+
 export async function captureSnapshot(session?: string): Promise<unknown> {
+  await checkAgentBrowser();
   const result = await runAgentBrowser(["snapshot", "-i", "--json"], { session });
   if (result.code !== 0) throw new Error(`agent-browser snapshot failed: ${result.stderr.trim() || `exit ${result.code}`}`);
   try {
@@ -63,6 +119,7 @@ export async function executeDecision(
   if (decision.snapshotHash !== options.currentSnapshotHash) {
     throw new Error("Refusing to execute a decision from a stale snapshot");
   }
+  await checkAgentBrowser({ binary: options.binary });
   const command = commandForDecision(decision);
   if (!command) return null;
   return runAgentBrowser(command, options);

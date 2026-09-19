@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { commandForDecision, executeDecision } from "../src/agentBrowser.js";
+import { checkAgentBrowser, commandForDecision, executeDecision } from "../src/agentBrowser.js";
 import { buildCandidates } from "../src/candidates.js";
 import { normalizeSnapshot } from "../src/normalize.js";
 import { clearRouteCache, routeSnapshot } from "../src/router.js";
@@ -111,5 +111,9 @@ describe("agent-browser Jev router", () => {
     const decision = { kind: "click", ref: "@e1", snapshotHash: "old", confidence: 1, goalCompletedProbability: 0, probabilities: {}, model: "jev-1.13.0", fallback: false, reasonCode: "selected", usage: { input_tokens: 0, output_tokens: 0 }, latencyMs: 0, stateSizeChars: 0, cached: false } as const;
     expect(commandForDecision(decision)).toEqual(["click", "@e1"]);
     await expect(executeDecision(decision, { currentSnapshotHash: "new", binary: "agent-browser" })).rejects.toThrow(/stale snapshot/);
+  });
+
+  it("reports a missing agent-browser binary with an install hint", async () => {
+    await expect(checkAgentBrowser({ binary: "agent-browser-that-is-not-installed", force: true })).rejects.toThrow(/npm i -g agent-browser/);
   });
 });

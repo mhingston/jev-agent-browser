@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { captureSnapshot, executeDecision } from "./agentBrowser.js";
+import { captureSnapshot, checkAgentBrowser, executeDecision } from "./agentBrowser.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { routeSnapshot } from "./router.js";
 
 function usage(): never {
   console.error(`Usage:
+  jev-agent-browser doctor
   jev-agent-browser route --goal <text> [--session <id>] [--input-values <json>] [--allow-risky]
   jev-agent-browser run --goal <text> [--session <id>] [--input-values <json>] [--allow-risky]
 
@@ -19,6 +20,10 @@ function argValue(args: string[], name: string): string | undefined {
 
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
+  if (command === "doctor") {
+    console.log(JSON.stringify(await checkAgentBrowser({ force: true }), null, 2));
+    return;
+  }
   if (!command || !["route", "run"].includes(command)) usage();
   const goal = argValue(args, "--goal");
   if (!goal) usage();

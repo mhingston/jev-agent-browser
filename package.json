@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "benchmark": "tsx scripts/benchmark.ts",
+    "doctor": "node dist/cli.js doctor",
     "smoke": "tsx scripts/smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest"

@@ -26,9 +26,12 @@ It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typ
 ```bash
 npm install
 npm run build
+npm run doctor
 ```
 
 The TypeSafe SDK reads the already-exported `TYPESAFE_API_KEY`. Jev is pinned to `jev-1.13.0` by default; set `TYPESAFE_DEFAULT_MODEL` to override it.
+
+`doctor` verifies that the `agent-browser` binary is executable and that its bundled core skill can be loaded. If it fails, install the browser tool with `npm i -g agent-browser && agent-browser install`.
 
 ## Quick start
 
@@ -51,6 +54,8 @@ node dist/cli.js run \
 ```
 
 The runner refuses low-confidence, unsafe, or stale decisions. Re-snapshot after every page-changing action because `@eN` refs are page-state specific.
+
+The sidecar repeats the same prerequisite check automatically and caches the result briefly, so normal routing does not pay the check on every action.
 
 ### Explicit form values
 
