@@ -1,13 +1,7 @@
 import { createServer } from "node:http";
-import { TypeSafeClient } from "@typesafe-ai/sdk";
+import { createDecisionClient } from "../src/decision.js";
 import { runAgentBrowser } from "../src/agentBrowser.js";
 import { runGoal } from "../src/runner.js";
-import type { SystemOneLikeClient } from "../src/types.js";
-
-if (!process.env.TYPESAFE_API_KEY?.trim()) {
-  console.error("TYPESAFE_API_KEY is unset; export it before running the live E2E test.");
-  process.exit(2);
-}
 
 const html = `<!doctype html>
 <html><head><title>Jev Live E2E</title></head>
@@ -33,7 +27,7 @@ const address = server.address();
 if (!address || typeof address === "string") throw new Error("Could not start live E2E fixture server");
 const url = `http://127.0.0.1:${address.port}/`;
 const session = `jev-live-e2e-${process.pid}`;
-const client = new TypeSafeClient({ defaultModel: process.env.TYPESAFE_DEFAULT_MODEL?.trim() || "jev-1.13.0" }) as unknown as SystemOneLikeClient;
+const client = createDecisionClient();
 
 try {
   const opened = await runAgentBrowser(["open", url], { session });
