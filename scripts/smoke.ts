@@ -5,6 +5,7 @@ import { routeSnapshot } from "../src/router.js";
 
 const client = createDecisionClient();
 const response = await client.systemOne({
+  model: "jev-1.13.0",
   state: {
     goal: "Open the settings page",
     page: { title: "Settings", text: "The settings page is visible." },
