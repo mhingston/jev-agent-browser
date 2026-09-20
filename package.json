@@ -1,7 +1,7 @@
 {
   "name": "@mhingston5/jev-agent-browser",
-  "version": "0.1.0",
-  "description": "Bounded, confidence-gated browser actions powered by TypeSafe Jev and agent-browser",
+  "version": "0.2.0",
+  "description": "Provider-agnostic, confidence-gated Jev browser actions for agent-browser",
   "license": "MIT",
   "author": "Mark Hingston",
   "repository": {
