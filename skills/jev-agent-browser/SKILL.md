@@ -38,7 +38,7 @@ Default policy:
 - `src/evaluation.ts` provides Brier score, reliability bins, and expected calibration error for labelled route logs.
 - Read-only routing by default; otherwise return `review`.
 
-Use the helper from this project:
+Use the published package:
 
 ```bash
 npm install -g @mhingston5/jev-agent-browser
@@ -49,7 +49,7 @@ jev run --url https://example.com --goal "Open the example link" --jsonl
 jev --url https://example.com --goal "Open the example link" --max-steps 5
 ```
 
-For a source checkout, run `npm install`, `npm run build`, and use `node dist/cli.js ...` instead.
+For local development in a source checkout, run `npm install`, `npm run build`, and use `node dist/cli.js ...` instead.
 
 ```bash
 npm run e2e

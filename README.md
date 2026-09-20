@@ -16,7 +16,7 @@ Requirements:
 - `agent-browser` 0.31.x or newer on `PATH`
 - A TypeSafe API key exported as `TYPESAFE_API_KEY`
 
-Once the package is published, install it alongside its peer browser CLI:
+Install the published package alongside its peer browser CLI:
 
 ```bash
 npm install -g agent-browser
@@ -34,7 +34,7 @@ The Secret Service command keeps the key out of shell history and source files; 
 
 `jev doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
 
-The npm package name is [`@mhingston5/jev-agent-browser`](https://www.npmjs.com/package/@mhingston5/jev-agent-browser), with the `jev` and `jev-agent-browser` commands. Once published, install it globally for the CLI or locally for the library API.
+The published npm package is [`@mhingston5/jev-agent-browser`](https://www.npmjs.com/package/@mhingston5/jev-agent-browser). It provides the `jev` and `jev-agent-browser` commands for global CLI use, or can be installed locally for the library API.
 
 ### Why use it
 
