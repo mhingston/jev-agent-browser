@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { runAgentBrowser } from "../src/agentBrowser.js";
 import { runGoal } from "../src/runner.js";
-import type { SystemOneLikeClient } from "../src/types.js";
+import type { SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 const html = `<!doctype html>
 <html><head><title>Jev E2E Fixture</title></head>
