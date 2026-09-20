@@ -1,3 +1,4 @@
+import type { SystemOneLikeClient } from "@mhingston5/jev-cli";
 import { AgentBrowserSession, classifyCommandFailure, type BrowserDriver, type CommandResult } from "./agentBrowser.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { defaultPolicy, routeSnapshot } from "./router.js";
@@ -10,7 +11,6 @@ import type {
   RecoveryContext,
   RouteDecision,
   RoutePolicy,
-  SystemOneLikeClient,
   TextValueProvider,
 } from "./types.js";
 
