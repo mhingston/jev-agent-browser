@@ -178,20 +178,3 @@ export interface BrowserToolSpec {
   collect?: boolean;
 }
 
-export interface SystemOneLikeClient {
-  systemOne(request: {
-    model: string;
-    // The SDK's EntryType/Questions types are intentionally hidden behind this
-    // small adapter so fixture clients can implement the same contract.
-    state: any;
-    questions: any;
-  }): Promise<{
-    model: string;
-    answers: Record<string, unknown> & {
-      action?: ChoiceAnswer;
-      operation?: ChoiceAnswer;
-      goal_completed?: { noul: number };
-    };
-    usage?: { input_tokens?: number; output_tokens?: number };
-  }>;
-}
