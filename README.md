@@ -22,10 +22,10 @@ Install the published package alongside its peer browser CLI:
 npm install -g agent-browser
 agent-browser install
 npm install -g @mhingston5/jev-agent-browser
-jev doctor
+jev-agent-browser doctor
 
 export TYPESAFE_API_KEY="$(secret-tool lookup service typesafe username "$USER")"
-jev --url https://example.com \
+jev-agent-browser --url https://example.com \
   --goal "Open the example link" \
   --expect-text "Example Domain"
 ```
@@ -34,7 +34,7 @@ The Secret Service command keeps the key out of shell history and source files; 
 
 ### Jev providers
 
-Choose a provider with `--provider` or `JEV_PROVIDER`. The library API accepts the same value as `createDecisionClient({ provider })`.
+Choose a provider with `--provider` or `JEV_PROVIDER`. The library API accepts the same value as `createJevClient({ provider })`.
 
 | Provider | CLI value | Credential | Default model | Notes |
 | --- | --- | --- | --- | --- |
@@ -43,27 +43,26 @@ Choose a provider with `--provider` or `JEV_PROVIDER`. The library API accepts t
 | Cloudflare AI | `cloudflare` | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `typesafe/jev` | Uses Cloudflare's `/ai/run` envelope |
 | Custom | `custom` | `JEV_API_KEY` when required | caller-defined | Set `--endpoint`; expects the TypeSafe/System One request shape |
 
-Use `JEV_MODEL` or `--model` to override the provider model identifier. Use `JEV_ENDPOINT` or `--endpoint` to override the provider endpoint. The old `--transport typesafe|fetch` option remains for compatibility, but new integrations should use `--provider`.
-
+Use `JEV_MODEL` or `--model` to override the provider model identifier. Use `JEV_ENDPOINT` or `--endpoint` to override the provider endpoint. 
 Examples:
 
 ```bash
 # TypeSafe direct (default)
 export TYPESAFE_API_KEY="..."
-jev run --provider typesafe --goal "Open the settings page"
+jev-agent-browser run --provider typesafe --goal "Open the settings page"
 
 # Vercel AI Gateway
 export AI_GATEWAY_API_KEY="..."
-jev run --provider vercel --goal "Open the settings page"
+jev-agent-browser run --provider vercel --goal "Open the settings page"
 
 # Cloudflare AI
 export CLOUDFLARE_API_TOKEN="..."
 export CLOUDFLARE_ACCOUNT_ID="..."
-jev run --provider cloudflare --goal "Open the settings page"
+jev-agent-browser run --provider cloudflare --goal "Open the settings page"
 
 # Custom TypeSafe/System One-compatible endpoint
 export JEV_API_KEY="..."
-jev run \
+jev-agent-browser run \
   --provider custom \
   --endpoint https://jev.example.com/v1/systemone \
   --model jev-custom \
@@ -75,14 +74,14 @@ You can make a provider the process default instead of passing `--provider` each
 ```bash
 export JEV_PROVIDER=vercel
 export AI_GATEWAY_API_KEY="..."
-jev run --goal "Open the settings page"
+jev-agent-browser run --goal "Open the settings page"
 ```
 
 Provider selection changes only how Jev requests are sent. Browser candidate extraction, confidence/risk gates, snapshot freshness checks, and action execution remain the same across providers.
 
-`jev doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
+`jev-agent-browser doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
 
-The published npm package is [`@mhingston5/jev-agent-browser`](https://www.npmjs.com/package/@mhingston5/jev-agent-browser). It provides the `jev` and `jev-agent-browser` commands for global CLI use, or can be installed locally for the library API.
+The published npm package is [`@mhingston5/jev-agent-browser`](https://www.npmjs.com/package/@mhingston5/jev-agent-browser). It provides the `jev-agent-browser` command for global CLI use, or can be installed locally for the library API.
 
 ### Why use it
 
@@ -96,7 +95,7 @@ The published npm package is [`@mhingston5/jev-agent-browser`](https://www.npmjs
 `route` is dry-run: it prints a JSON decision without executing it. Use `run` when the decision should be applied:
 
 ```bash
-jev route \
+jev-agent-browser route \
   --goal "Open the example link" \
   --session demo
 ```
@@ -106,7 +105,7 @@ The runner re-snapshots before and after every action and refuses low-confidence
 For a deterministic completion check, add an expected visible string:
 
 ```bash
-jev run \
+jev-agent-browser run \
   --goal "Open the example link" \
   --session demo \
   --expect-text "Example Domain"
@@ -118,11 +117,11 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 
 | Command | Purpose | Calls the live Jev API? |
 | --- | --- | --- |
-| `jev doctor` | Verify `agent-browser` and its bundled core skill | No |
-| `jev --url <url> --goal <text>` | Shorthand for a bounded `run` | Yes |
-| `jev route ...` | Dry-run one validated decision | Yes |
-| `jev run ...` | Execute the bounded route–act–reobserve loop | Yes |
-| `jev research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
+| `jev-agent-browser doctor` | Verify `agent-browser` and its bundled core skill | No |
+| `jev-agent-browser --url <url> --goal <text>` | Shorthand for a bounded `run` | Yes |
+| `jev-agent-browser route ...` | Dry-run one validated decision | Yes |
+| `jev-agent-browser run ...` | Execute the bounded route–act–reobserve loop | Yes |
+| `jev-agent-browser research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
 | `npm run smoke` | Check the selected Jev provider and live router contract | Yes |
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
@@ -131,20 +130,21 @@ For delegated execution, add `--plan` and `--subtask`. Use `--url <url>` to open
 
 Pass `--jsonl` to stream run/research events as JSON Lines. Research also accepts `--summary` when only query results and metrics are needed.
 
-The `npm run ...` entries in the table are for a source checkout; the published package exposes the `jev` commands above.
+The `npm run ...` entries in the table are for a source checkout; the published package exposes the `jev-agent-browser` command above.
 
 ### Library API
 
 The same loop can be embedded in a Node agent. Install the package with `npm install @mhingston5/jev-agent-browser`, then import its typed API. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
 
 ```ts
-import { AgentBrowserSession, createDecisionClient, runGoal } from "@mhingston5/jev-agent-browser";
+import { createJevClient } from "@mhingston5/jev-cli";
+import { AgentBrowserSession, runGoal } from "@mhingston5/jev-agent-browser";
 
 const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
 
 // Swap "typesafe" for "vercel", "cloudflare", or "custom".
 // Credentials/endpoints use the same environment variables as the CLI.
-const client = createDecisionClient({ provider: "typesafe" });
+const client = createJevClient({ provider: "typesafe" });
 const result = await runGoal({
   browser,
   client,
@@ -228,14 +228,14 @@ For the CLI, a minimal `research.json` can look like this:
 }
 ```
 
-Run it with `jev research --config ./research.json --session demo`.
+Run it with `jev-agent-browser research --config ./research.json --session demo`.
 
 ### Explicit form values
 
 Jev never invents text to type. Pass caller-approved values by ref:
 
 ```bash
-jev route \
+jev-agent-browser route \
   --goal "Set the display name" \
   --input-values '{"@e1":"Mark"}' \
   --session demo
@@ -244,7 +244,7 @@ jev route \
 Caller-authorized key presses use the reserved `__press__` input value:
 
 ```bash
-jev route \
+jev-agent-browser route \
   --goal "Submit the search" \
   --input-values '{"__press__":"Enter"}' \
   --session demo
@@ -324,7 +324,7 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 ## Troubleshooting
 
 - Provider authentication errors: export the provider credential (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`, or `CLOUDFLARE_API_TOKEN`; Cloudflare also needs `CLOUDFLARE_ACCOUNT_ID`) before `route`, `run`, `smoke`, or `e2e:live`; do not commit credentials to `.env` files.
-- `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `jev doctor` (or `npm run doctor` from a source checkout).
+- `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `jev-agent-browser doctor` (or `npm run doctor` from a source checkout).
 - A decision returns `review`: Jev may be below the confidence floor, the response may have failed validation, the action may be risky, or the page may have changed. Inspect the decision’s `reasonCode` before retrying.
 - A run returns `stuck` or `max-steps`: inspect the final snapshot and action history; increase the bound only when the page genuinely needs more steps.
 - A run returns `execution-failed`: inspect `failureClass` (`stale`, `timeout`, `auth`, `unsupported`, `network`, or `unknown`) and repair the browser/session state before retrying.
