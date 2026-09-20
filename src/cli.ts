@@ -1,6 +1,6 @@
 #!/usr/bin/env node
+import { createJevClient, JEV_PROVIDERS, type JevProvider } from "@mhingston5/jev-cli";
 import { AgentBrowserSession, checkAgentBrowser } from "./agentBrowser.js";
-import { createDecisionClient, DECISION_PROVIDERS, type DecisionProvider, type DecisionTransport } from "./decision.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { loadResearchConfig, runResearch } from "./researchRunner.js";
 import { routeSnapshot } from "./router.js";
@@ -8,11 +8,11 @@ import { runGoal } from "./runner.js";
 
 function usage(): never {
   console.error(`Usage:
-  jev [--url <url>] --goal <text> [run options]   # shorthand for jev run
+  jev-agent-browser [--url <url>] --goal <text> [run options]   # shorthand for jev-agent-browser run
   jev-agent-browser doctor [--browser-command <path>]
-  jev-agent-browser route --goal <text> [--url <url>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl]
-  jev-agent-browser run --goal <text> [--url <url>] [--plan <text>] [--subtask <text>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--max-steps <n>] [--max-recovery-attempts <n>] [--history-limit <n>] [--repeat-limit <n>] [--expect-text <text>] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl]
-  jev-agent-browser research --config <path> [--session <id>] [--browser-command <path>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl] [--summary]
+  jev-agent-browser route --goal <text> [--url <url>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--jsonl]
+  jev-agent-browser run --goal <text> [--url <url>] [--plan <text>] [--subtask <text>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--max-steps <n>] [--max-recovery-attempts <n>] [--history-limit <n>] [--repeat-limit <n>] [--expect-text <text>] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--jsonl]
+  jev-agent-browser research --config <path> [--session <id>] [--browser-command <path>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--jsonl] [--summary]
 
 The route command is dry-run. The run command executes only a validated, non-review decision.`);
   process.exit(2);
@@ -57,20 +57,17 @@ async function main(): Promise<void> {
   const autoConnect = args.includes("--auto-connect") || args.includes("--attach");
   const pinTab = args.includes("--pin-tab");
   const browserArgs = argValues(args, "--browser-arg");
-  const providerText = argValue(args, "--provider") as DecisionProvider | undefined;
-  if (providerText != null && !DECISION_PROVIDERS.includes(providerText)) {
-    throw new Error(`--provider must be one of ${DECISION_PROVIDERS.join(", ")}`);
+  const providerText = argValue(args, "--provider") as JevProvider | undefined;
+  if (providerText != null && !JEV_PROVIDERS.includes(providerText)) {
+    throw new Error(`--provider must be one of ${JEV_PROVIDERS.join(", ")}`);
   }
-  const transportText = argValue(args, "--transport") as DecisionTransport | undefined;
-  if (transportText != null && transportText !== "typesafe" && transportText !== "fetch") throw new Error("--transport must be typesafe or fetch");
-  if (providerText != null && transportText != null) throw new Error("Use --provider or legacy --transport, not both");
   const endpoint = argValue(args, "--endpoint");
   const model = argValue(args, "--model");
   const jsonl = args.includes("--jsonl");
   const summary = args.includes("--summary");
   if (command === "research" && url) throw new Error("--url is only supported by route and run; research URLs belong in the config");
   const browser = new AgentBrowserSession({ session, binary, cdp, autoConnect, pinTab, browserArgs });
-  const client = createDecisionClient({ provider: providerText, transport: transportText, endpoint, model });
+  const client = createJevClient({ provider: providerText, endpoint, model });
   if (command === "research") {
     const config = await loadResearchConfig(configPath!);
     const result = await runResearch({ config, browser, client, onEvent: jsonl ? (event) => console.log(JSON.stringify(event)) : undefined });
