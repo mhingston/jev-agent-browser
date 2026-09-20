@@ -90,9 +90,7 @@ function defaultEndpoint(provider: DecisionProvider, accountId?: string): string
   if (override) return override;
   switch (provider) {
     case "typesafe":
-      return process.env.TYPESAFE_BASE_URL?.trim()
-        ? `${process.env.TYPESAFE_BASE_URL!.replace(/\/$/, "")}/v1/systemone`
-        : DEFAULT_ENDPOINT;
+      return process.env.TYPESAFE_BASE_URL?.trim() || DEFAULT_ENDPOINT;
     case "vercel":
       return VERCEL_ENDPOINT;
     case "cloudflare": {
