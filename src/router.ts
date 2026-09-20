@@ -1,5 +1,4 @@
-import { choice, noul } from "@typesafe-ai/sdk";
-import { createDecisionClient } from "./decision.js";
+import { choice, createJevClient, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 import { buildCandidates } from "./candidates.js";
 import { sieveContext } from "./context.js";
 import { normalizeSnapshot } from "./normalize.js";
@@ -13,7 +12,6 @@ import type {
   RouteInput,
   RoutePolicy,
   RecoveryContext,
-  SystemOneLikeClient,
 } from "./types.js";
 import type { ToolSpec } from "./toolRouter.js";
 
@@ -248,7 +246,7 @@ export async function routeSnapshot(
   snapshot: NormalizedSnapshot,
   inputValues: Record<string, string> = {},
   options: Partial<RoutePolicy> = {},
-  client: SystemOneLikeClient = createDecisionClient(),
+  client: SystemOneLikeClient = createJevClient(),
   history: ActionHistoryEntry[] = [],
   context: RouteContext = {},
 ): Promise<RouteDecision> {
