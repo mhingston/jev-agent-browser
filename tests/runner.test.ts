@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeSnapshot } from "../src/normalize.js";
 import { runGoal } from "../src/runner.js";
 import type { BrowserDriver, CommandResult } from "../src/agentBrowser.js";
-import type { SystemOneLikeClient } from "../src/types.js";
+import type { SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 const initial = normalizeSnapshot({
   url: "https://example.test",
