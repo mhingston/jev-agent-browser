@@ -23,7 +23,7 @@ export interface ToolRouteResult {
 }
 
 const DEFAULTS: Required<ToolRouteOptions> = {
-  model: process.env.JEV_MODEL?.trim() || process.env.TYPESAFE_DEFAULT_MODEL?.trim() || "jev",
+  model: "jev-1.13.0",
   confidenceFloor: 0.6,
   fitThreshold: 0.5,
   riskyConfidence: 0.9,
