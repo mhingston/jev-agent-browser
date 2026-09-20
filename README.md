@@ -48,6 +48,10 @@ Use `JEV_MODEL` or `--model` to override the provider model identifier. Use `JEV
 Examples:
 
 ```bash
+# TypeSafe direct (default)
+export TYPESAFE_API_KEY="..."
+jev run --provider typesafe --goal "Open the settings page"
+
 # Vercel AI Gateway
 export AI_GATEWAY_API_KEY="..."
 jev run --provider vercel --goal "Open the settings page"
@@ -56,7 +60,25 @@ jev run --provider vercel --goal "Open the settings page"
 export CLOUDFLARE_API_TOKEN="..."
 export CLOUDFLARE_ACCOUNT_ID="..."
 jev run --provider cloudflare --goal "Open the settings page"
+
+# Custom TypeSafe/System One-compatible endpoint
+export JEV_API_KEY="..."
+jev run \
+  --provider custom \
+  --endpoint https://jev.example.com/v1/systemone \
+  --model jev-custom \
+  --goal "Open the settings page"
 ```
+
+You can make a provider the process default instead of passing `--provider` each time:
+
+```bash
+export JEV_PROVIDER=vercel
+export AI_GATEWAY_API_KEY="..."
+jev run --goal "Open the settings page"
+```
+
+Provider selection changes only how Jev requests are sent. Browser candidate extraction, confidence/risk gates, snapshot freshness checks, and action execution remain the same across providers.
 
 `jev doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
 
@@ -101,7 +123,7 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 | `jev route ...` | Dry-run one validated decision | Yes |
 | `jev run ...` | Execute the bounded route–act–reobserve loop | Yes |
 | `jev research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
-| `npm run smoke` | Check the TypeSafe API and live router contract | Yes |
+| `npm run smoke` | Check the selected Jev provider and live router contract | Yes |
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
 
@@ -119,7 +141,10 @@ The same loop can be embedded in a Node agent. Install the package with `npm ins
 import { AgentBrowserSession, createDecisionClient, runGoal } from "@mhingston5/jev-agent-browser";
 
 const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
-const client = createDecisionClient({ transport: "typesafe" });
+
+// Swap "typesafe" for "vercel", "cloudflare", or "custom".
+// Credentials/endpoints use the same environment variables as the CLI.
+const client = createDecisionClient({ provider: "typesafe" });
 const result = await runGoal({
   browser,
   client,
@@ -288,7 +313,7 @@ npm run benchmark
 npm run evaluate
 ```
 
-Run the live API smoke test after exporting the key:
+Run the live API smoke test after configuring the provider and its credentials:
 
 ```bash
 npm run smoke
