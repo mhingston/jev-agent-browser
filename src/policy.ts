@@ -1,7 +1,7 @@
 import type { RoutePolicy } from "./types.js";
 
 export const DEFAULT_POLICY: RoutePolicy = {
-  model: process.env.JEV_MODEL?.trim() || process.env.TYPESAFE_DEFAULT_MODEL?.trim() || "jev",
+  model: process.env.TYPESAFE_DEFAULT_MODEL?.trim() || "jev-1.13.0",
   confidenceFloor: 0.6,
   goalCompleteThreshold: 0.8,
   riskyConfidence: 0.9,
