@@ -3,7 +3,7 @@ import { normalizeSnapshot } from "../src/normalize.js";
 import { runResearch } from "../src/researchRunner.js";
 import { allowedFollowUpTarget, enrichContactEvidence, keepClassifiedItems } from "../src/research.js";
 import type { BrowserDriver, CommandResult } from "../src/agentBrowser.js";
-import type { SystemOneLikeClient } from "../src/types.js";
+import type { SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 describe("research helpers", () => {
   it("keeps classified items and extracts contact evidence after the keep decision", () => {
