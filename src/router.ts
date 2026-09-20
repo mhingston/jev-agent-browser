@@ -1,4 +1,5 @@
-import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
+import { choice, noul } from "@typesafe-ai/sdk";
+import { createDecisionClient } from "./decision.js";
 import { buildCandidates } from "./candidates.js";
 import { sieveContext } from "./context.js";
 import { normalizeSnapshot } from "./normalize.js";
@@ -247,7 +248,7 @@ export async function routeSnapshot(
   snapshot: NormalizedSnapshot,
   inputValues: Record<string, string> = {},
   options: Partial<RoutePolicy> = {},
-  client: SystemOneLikeClient = new TypeSafeClient() as unknown as SystemOneLikeClient,
+  client: SystemOneLikeClient = createDecisionClient(),
   history: ActionHistoryEntry[] = [],
   context: RouteContext = {},
 ): Promise<RouteDecision> {
