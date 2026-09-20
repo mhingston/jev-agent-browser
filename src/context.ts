@@ -1,5 +1,4 @@
-import { noul } from "@typesafe-ai/sdk";
-import type { SystemOneLikeClient } from "./types.js";
+import { noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 export interface ContextBlock {
   id: string;
