@@ -9,7 +9,6 @@ export * from "./context.js";
 export * from "./toolRouter.js";
 export * from "./postAction.js";
 export * from "./evaluation.js";
-export * from "./decision.js";
 export * from "./classification.js";
 export * from "./research.js";
 export * from "./researchRunner.js";
