@@ -1,5 +1,5 @@
-import { choice, noul } from "@typesafe-ai/sdk";
-import type { BrowserFailureKind, ChoiceAnswer, PostActionContext, PostActionVerifier, SystemOneLikeClient } from "./types.js";
+import { choice, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import type { BrowserFailureKind, ChoiceAnswer, PostActionContext, PostActionVerifier } from "./types.js";
 
 const FAILURE_CLASSES: Record<BrowserFailureKind, string> = {
   stale: "The target or page changed before the intended effect was applied.",

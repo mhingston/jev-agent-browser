@@ -1,9 +1,8 @@
-import { noul } from "@typesafe-ai/sdk";
-import { createDecisionClient } from "../src/decision.js";
+import { createJevClient, noul } from "@mhingston5/jev-cli";
 import { normalizeSnapshot } from "../src/normalize.js";
 import { routeSnapshot } from "../src/router.js";
 
-const client = createDecisionClient();
+const client = createJevClient();
 const response = await client.systemOne({
   model: "jev-1.13.0",
   state: {

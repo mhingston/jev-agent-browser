@@ -1,5 +1,4 @@
-import { choice } from "@typesafe-ai/sdk";
-import type { SystemOneLikeClient } from "./types.js";
+import { choice, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 export const DEFAULT_MAX_ITEMS = 20;
 export const DEFAULT_MAX_TEXT_CHARS = 2_000;

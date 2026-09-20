@@ -4,7 +4,8 @@ import { AgentBrowserSession, type BrowserDriver } from "./agentBrowser.js";
 import { buildBatchClassificationRequest, classifyBatch, applyProfileOverrides, type ClassificationProfile } from "./classification.js";
 import { enrichContactEvidence, keepClassifiedItems, allowedFollowUpTarget } from "./research.js";
 import { runGoal, type RunEvent } from "./runner.js";
-import type { BrowserToolSpec, SystemOneLikeClient } from "./types.js";
+import type { SystemOneLikeClient } from "@mhingston5/jev-cli";
+import type { BrowserToolSpec } from "./types.js";
 
 export interface ResearchQuery {
   url: string;
