@@ -59,7 +59,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@mhingston5/jev-cli": "^0.1.0"
+    "@mhingston5/jev-cli": "^0.1.1"
   },
   "peerDependencies": {
     "agent-browser": ">=0.31.1"
