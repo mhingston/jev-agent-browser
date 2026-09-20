@@ -7,7 +7,7 @@ description: Route bounded browser actions with Jev using compact agent-browser 
 
 Load the installed `agent-browser` core skill before using this integration. Keep the browser loop deterministic:
 
-1. Run `jev-agent-browser doctor` before the first route. It verifies the `agent-browser` binary and bundled core skill.
+1. Run `jev doctor` before the first route. It verifies the `agent-browser` binary and bundled core skill.
 2. Capture `agent-browser snapshot --json` so visible structural text remains available for postconditions.
 3. Normalize only the current URL/title, relevant page text, and interactive elements.
 4. Call the helper once with the user goal and compact snapshot; prefer operation + operation-specific target questions. Navigation goals may produce read-only `back`, `forward`, or `reload` commands.
@@ -41,12 +41,17 @@ Default policy:
 Use the helper from this project:
 
 ```bash
-npm run build
-npm run doctor
-node dist/cli.js route --goal "Open the account settings" --session my-session
-node dist/cli.js run --goal "Open the account settings" --session my-session
-node dist/cli.js run --url https://example.com --goal "Open the example link" --jsonl
+npm install -g @mhingston5/jev-agent-browser
+jev doctor
+jev route --goal "Open the account settings" --session my-session
+jev run --goal "Open the account settings" --session my-session
+jev run --url https://example.com --goal "Open the example link" --jsonl
 jev --url https://example.com --goal "Open the example link" --max-steps 5
+```
+
+For a source checkout, run `npm install`, `npm run build`, and use `node dist/cli.js ...` instead.
+
+```bash
 npm run e2e
 npm run e2e:live
 npm run evaluate

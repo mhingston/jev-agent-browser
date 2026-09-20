@@ -16,31 +16,25 @@ Requirements:
 - `agent-browser` 0.31.x or newer on `PATH`
 - A TypeSafe API key exported as `TYPESAFE_API_KEY`
 
-From a checkout of this repository:
+Once the package is published, install it alongside its peer browser CLI:
 
 ```bash
-git clone https://github.com/mhingston/jev-agent-browser.git
-cd jev-agent-browser
-
 npm install -g agent-browser
 agent-browser install
-npm install
-npm run build
-npm run doctor
+npm install -g @mhingston5/jev-agent-browser
+jev doctor
 
 export TYPESAFE_API_KEY="$(secret-tool lookup service typesafe username "$USER")"
-agent-browser --session demo open https://example.com
-node dist/cli.js run \
+jev --url https://example.com \
   --goal "Open the example link" \
-  --session demo \
   --expect-text "Example Domain"
 ```
 
 The Secret Service command keeps the key out of shell history and source files; use your organization’s equivalent secret manager elsewhere. The TypeSafe SDK reads the exported key and defaults to `jev-1.13.0`; set `TYPESAFE_DEFAULT_MODEL` to override it.
 
-`doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
+`jev doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
 
-The package metadata is ready for an npm release, but this repository remains `private` until a non-conflicting package name or npm scope is selected. Until then, use the checked-out CLI commands above.
+The npm package name is [`@mhingston5/jev-agent-browser`](https://www.npmjs.com/package/@mhingston5/jev-agent-browser), with the `jev` and `jev-agent-browser` commands. Once published, install it globally for the CLI or locally for the library API.
 
 ### Why use it
 
@@ -54,7 +48,7 @@ The package metadata is ready for an npm release, but this repository remains `p
 `route` is dry-run: it prints a JSON decision without executing it. Use `run` when the decision should be applied:
 
 ```bash
-node dist/cli.js route \
+jev route \
   --goal "Open the example link" \
   --session demo
 ```
@@ -64,7 +58,7 @@ The runner re-snapshots before and after every action and refuses low-confidence
 For a deterministic completion check, add an expected visible string:
 
 ```bash
-node dist/cli.js run \
+jev run \
   --goal "Open the example link" \
   --session demo \
   --expect-text "Example Domain"
@@ -76,11 +70,11 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 
 | Command | Purpose | Calls the live Jev API? |
 | --- | --- | --- |
-| `npm run doctor` | Verify `agent-browser` and its bundled core skill | No |
+| `jev doctor` | Verify `agent-browser` and its bundled core skill | No |
 | `jev --url <url> --goal <text>` | Shorthand for a bounded `run` | Yes |
-| `node dist/cli.js route ...` | Dry-run one validated decision | Yes |
-| `node dist/cli.js run ...` | Execute the bounded route–act–reobserve loop | Yes |
-| `node dist/cli.js research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
+| `jev route ...` | Dry-run one validated decision | Yes |
+| `jev run ...` | Execute the bounded route–act–reobserve loop | Yes |
+| `jev research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
 | `npm run smoke` | Check the TypeSafe API and live router contract | Yes |
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
@@ -89,12 +83,14 @@ For delegated execution, add `--plan` and `--subtask`. Use `--url <url>` to open
 
 Pass `--jsonl` to stream run/research events as JSON Lines. Research also accepts `--summary` when only query results and metrics are needed.
 
+The `npm run ...` entries in the table are for a source checkout; the published package exposes the `jev` commands above.
+
 ### Library API
 
-The same loop can be embedded in a Node agent. After building this checkout, import from `./dist/index.js`; after an npm release, use the package name. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
+The same loop can be embedded in a Node agent. Install the package with `npm install @mhingston5/jev-agent-browser`, then import its typed API. Injecting the browser and decision client keeps tests deterministic and supports CDP/auto-connect sessions:
 
 ```ts
-import { AgentBrowserSession, createDecisionClient, runGoal } from "./dist/index.js";
+import { AgentBrowserSession, createDecisionClient, runGoal } from "@mhingston5/jev-agent-browser";
 
 const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
 const client = createDecisionClient({ transport: "typesafe" });
@@ -136,7 +132,7 @@ For bounded multi-page research, provide queries, an explicit classification pro
 Continuing the previous example, the library runner can also collect and classify evidence across pages:
 
 ```ts
-import { runResearch } from "./dist/index.js";
+import { runResearch } from "@mhingston5/jev-agent-browser";
 
 const result = await runResearch({
   browser,
@@ -181,14 +177,14 @@ For the CLI, a minimal `research.json` can look like this:
 }
 ```
 
-Run it with `node dist/cli.js research --config ./research.json --session demo`.
+Run it with `jev research --config ./research.json --session demo`.
 
 ### Explicit form values
 
 Jev never invents text to type. Pass caller-approved values by ref:
 
 ```bash
-node dist/cli.js route \
+jev route \
   --goal "Set the display name" \
   --input-values '{"@e1":"Mark"}' \
   --session demo
@@ -197,7 +193,7 @@ node dist/cli.js route \
 Caller-authorized key presses use the reserved `__press__` input value:
 
 ```bash
-node dist/cli.js route \
+jev route \
   --goal "Submit the search" \
   --input-values '{"__press__":"Enter"}' \
   --session demo
@@ -249,6 +245,15 @@ The current fixtures show roughly 74% fewer serialized state characters. Live re
 
 ## Development
 
+For local development from a checkout:
+
+```bash
+git clone https://github.com/mhingston/jev-agent-browser.git
+cd jev-agent-browser
+npm install
+npm run build
+```
+
 ```bash
 npm run typecheck
 npm test
@@ -268,7 +273,7 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 ## Troubleshooting
 
 - `TYPESAFE_API_KEY is unset`: export the key before `route`, `run`, `smoke`, or `e2e:live`; do not commit it to `.env` files.
-- `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `npm run doctor`.
+- `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `jev doctor` (or `npm run doctor` from a source checkout).
 - A decision returns `review`: Jev may be below the confidence floor, the response may have failed validation, the action may be risky, or the page may have changed. Inspect the decision’s `reasonCode` before retrying.
 - A run returns `stuck` or `max-steps`: inspect the final snapshot and action history; increase the bound only when the page genuinely needs more steps.
 - A run returns `execution-failed`: inspect `failureClass` (`stale`, `timeout`, `auth`, `unsupported`, `network`, or `unknown`) and repair the browser/session state before retrying.
