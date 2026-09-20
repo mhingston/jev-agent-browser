@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { createDecisionClient } from "../src/decision.js";
+import { createJevClient } from "@mhingston5/jev-cli";
 import { runAgentBrowser } from "../src/agentBrowser.js";
 import { runGoal } from "../src/runner.js";
 
@@ -27,7 +27,7 @@ const address = server.address();
 if (!address || typeof address === "string") throw new Error("Could not start live E2E fixture server");
 const url = `http://127.0.0.1:${address.port}/`;
 const session = `jev-live-e2e-${process.pid}`;
-const client = createDecisionClient();
+const client = createJevClient();
 
 try {
   const opened = await runAgentBrowser(["open", url], { session });
