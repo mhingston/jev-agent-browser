@@ -1,6 +1,5 @@
-import { choice, noul } from "@typesafe-ai/sdk";
-import { createDecisionClient } from "./decision.js";
-import type { BrowserToolSpec, SystemOneLikeClient } from "./types.js";
+import { choice, createJevClient, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import type { BrowserToolSpec } from "./types.js";
 
 export type ToolSpec = BrowserToolSpec;
 
@@ -66,7 +65,7 @@ export async function routeTool(
   goal: string,
   state: unknown,
   tools: ToolSpec[],
-  client: SystemOneLikeClient = createDecisionClient(),
+  client: SystemOneLikeClient = createJevClient(),
   options: ToolRouteOptions = {},
 ): Promise<ToolRouteResult> {
   const policy = { ...DEFAULTS, ...options };
