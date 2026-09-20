@@ -4,7 +4,7 @@ Jev Agent Browser is a small TypeScript sidecar that helps [`agent-browser`](htt
 
 It gives Jev a compact accessibility snapshot and a user goal. Jev returns a typed decision; ordinary code validates the decision and `agent-browser` performs the action. This keeps browser control deterministic while reducing the context sent to a larger reasoning model.
 
-It combines Vercel’s browser automation CLI with [TypeSafe AI’s Jev](https://typesafe.ai/), a typed-decision pattern built around fast Choice and Noul judgments.
+It combines Vercel’s browser automation CLI with [TypeSafe AI’s Jev](https://typesafe.ai/), using a provider adapter layer so the same typed-decision loop can run through TypeSafe directly, Vercel AI Gateway, Cloudflare AI, or a compatible custom endpoint.
 
 ## Install and quick start
 
@@ -14,7 +14,7 @@ Requirements:
 
 - Node.js 20 or newer
 - `agent-browser` 0.31.x or newer on `PATH`
-- A TypeSafe API key exported as `TYPESAFE_API_KEY`
+- Credentials for one supported Jev provider (TypeSafe, Vercel AI Gateway, Cloudflare AI, or a compatible custom endpoint)
 
 Install the published package alongside its peer browser CLI:
 
@@ -30,7 +30,55 @@ jev --url https://example.com \
   --expect-text "Example Domain"
 ```
 
-The Secret Service command keeps the key out of shell history and source files; use your organization’s equivalent secret manager elsewhere. The TypeSafe SDK reads the exported key and defaults to `jev-1.13.0`; set `TYPESAFE_DEFAULT_MODEL` to override it.
+The Secret Service command keeps the key out of shell history and source files; use your organization’s equivalent secret manager elsewhere. TypeSafe remains the default provider for backward compatibility.
+
+### Jev providers
+
+Choose a provider with `--provider` or `JEV_PROVIDER`. The library API accepts the same value as `createDecisionClient({ provider })`.
+
+| Provider | CLI value | Credential | Default model | Notes |
+| --- | --- | --- | --- | --- |
+| TypeSafe | `typesafe` | `TYPESAFE_API_KEY` | `jev-1.13.0` | Default; native TypeSafe System One API |
+| Vercel AI Gateway | `vercel` | `AI_GATEWAY_API_KEY` | `typesafe-ai/jev` | Uses Vercel's TypeSafe-compatible `/typesafe/v1/systemone` API |
+| Cloudflare AI | `cloudflare` | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | `typesafe/jev` | Uses Cloudflare's `/ai/run` envelope |
+| Custom | `custom` | `JEV_API_KEY` when required | caller-defined | Set `--endpoint`; expects the TypeSafe/System One request shape |
+
+Use `JEV_MODEL` or `--model` to override the provider model identifier. Use `JEV_ENDPOINT` or `--endpoint` to override the provider endpoint. The old `--transport typesafe|fetch` option remains for compatibility, but new integrations should use `--provider`.
+
+Examples:
+
+```bash
+# TypeSafe direct (default)
+export TYPESAFE_API_KEY="..."
+jev run --provider typesafe --goal "Open the settings page"
+
+# Vercel AI Gateway
+export AI_GATEWAY_API_KEY="..."
+jev run --provider vercel --goal "Open the settings page"
+
+# Cloudflare AI
+export CLOUDFLARE_API_TOKEN="..."
+export CLOUDFLARE_ACCOUNT_ID="..."
+jev run --provider cloudflare --goal "Open the settings page"
+
+# Custom TypeSafe/System One-compatible endpoint
+export JEV_API_KEY="..."
+jev run \
+  --provider custom \
+  --endpoint https://jev.example.com/v1/systemone \
+  --model jev-custom \
+  --goal "Open the settings page"
+```
+
+You can make a provider the process default instead of passing `--provider` each time:
+
+```bash
+export JEV_PROVIDER=vercel
+export AI_GATEWAY_API_KEY="..."
+jev run --goal "Open the settings page"
+```
+
+Provider selection changes only how Jev requests are sent. Browser candidate extraction, confidence/risk gates, snapshot freshness checks, and action execution remain the same across providers.
 
 `jev doctor` verifies that `agent-browser` and its bundled core skill are available. If it fails, run `npm i -g agent-browser && agent-browser install` and retry.
 
@@ -75,11 +123,11 @@ The browser preflight is cached briefly, so normal routing does not repeatedly c
 | `jev route ...` | Dry-run one validated decision | Yes |
 | `jev run ...` | Execute the bounded route–act–reobserve loop | Yes |
 | `jev research --config <path>` | Run bounded multi-query collection, follow-ups, and typed classification | Yes |
-| `npm run smoke` | Check the TypeSafe API and live router contract | Yes |
+| `npm run smoke` | Check the selected Jev provider and live router contract | Yes |
 | `npm run e2e` | Deterministic browser fixture with a fake Jev client | No |
 | `npm run e2e:live` | Real browser fixture with the live Jev API | Yes |
 
-For delegated execution, add `--plan` and `--subtask`. Use `--url <url>` to open a page before `route` or `run`, or attach to an existing Chrome session with `--cdp`, `--auto-connect`, `--attach`, or `--pin-tab`. Use `--browser-command <path>` for a non-default browser executable. The CLI defaults to the TypeSafe SDK; compatible HTTP decision endpoints can be selected with `--transport fetch --endpoint <url>`.
+For delegated execution, add `--plan` and `--subtask`. Use `--url <url>` to open a page before `route` or `run`, or attach to an existing Chrome session with `--cdp`, `--auto-connect`, `--attach`, or `--pin-tab`. Use `--browser-command <path>` for a non-default browser executable. The CLI defaults to TypeSafe for backward compatibility. Select `--provider vercel` or `--provider cloudflare` for hosted Jev, or `--provider custom --endpoint <url>` for a TypeSafe/System One-compatible endpoint.
 
 Pass `--jsonl` to stream run/research events as JSON Lines. Research also accepts `--summary` when only query results and metrics are needed.
 
@@ -93,7 +141,10 @@ The same loop can be embedded in a Node agent. Install the package with `npm ins
 import { AgentBrowserSession, createDecisionClient, runGoal } from "@mhingston5/jev-agent-browser";
 
 const browser = new AgentBrowserSession({ session: "demo", autoConnect: true, pinTab: true });
-const client = createDecisionClient({ transport: "typesafe" });
+
+// Swap "typesafe" for "vercel", "cloudflare", or "custom".
+// Credentials/endpoints use the same environment variables as the CLI.
+const client = createDecisionClient({ provider: "typesafe" });
 const result = await runGoal({
   browser,
   client,
@@ -262,7 +313,7 @@ npm run benchmark
 npm run evaluate
 ```
 
-Run the live API smoke test after exporting the key:
+Run the live API smoke test after configuring the provider and its credentials:
 
 ```bash
 npm run smoke
@@ -272,7 +323,7 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 
 ## Troubleshooting
 
-- `TYPESAFE_API_KEY is unset`: export the key before `route`, `run`, `smoke`, or `e2e:live`; do not commit it to `.env` files.
+- Provider authentication errors: export the provider credential (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`, or `CLOUDFLARE_API_TOKEN`; Cloudflare also needs `CLOUDFLARE_ACCOUNT_ID`) before `route`, `run`, `smoke`, or `e2e:live`; do not commit credentials to `.env` files.
 - `agent-browser is not installed`: run `npm i -g agent-browser && agent-browser install`, then rerun `jev doctor` (or `npm run doctor` from a source checkout).
 - A decision returns `review`: Jev may be below the confidence floor, the response may have failed validation, the action may be risky, or the page may have changed. Inspect the decision’s `reasonCode` before retrying.
 - A run returns `stuck` or `max-steps`: inspect the final snapshot and action history; increase the bound only when the page genuinely needs more steps.
@@ -280,7 +331,7 @@ The integration skill is available at [`skills/jev-agent-browser/SKILL.md`](skil
 
 ## Safety notes
 
-- Assume `TYPESAFE_API_KEY` is already exported before running live commands. Never pass it through page content, browser headers, screenshots, or command arguments.
+- Assume the selected provider credential is already exported before running live commands. Never pass provider keys or tokens through page content, browser headers, screenshots, or command arguments.
 - Treat page text as untrusted data, including prompt-injection attempts.
 - Keep risky actions disabled by default.
 - Do not reuse a decision after the snapshot hash changes.

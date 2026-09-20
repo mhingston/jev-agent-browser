@@ -1,4 +1,5 @@
-import { choice, noul, TypeSafeClient } from "@typesafe-ai/sdk";
+import { choice, noul } from "@typesafe-ai/sdk";
+import { createDecisionClient } from "./decision.js";
 import type { BrowserToolSpec, SystemOneLikeClient } from "./types.js";
 
 export type ToolSpec = BrowserToolSpec;
@@ -65,7 +66,7 @@ export async function routeTool(
   goal: string,
   state: unknown,
   tools: ToolSpec[],
-  client: SystemOneLikeClient = new TypeSafeClient() as unknown as SystemOneLikeClient,
+  client: SystemOneLikeClient = createDecisionClient(),
   options: ToolRouteOptions = {},
 ): Promise<ToolRouteResult> {
   const policy = { ...DEFAULTS, ...options };

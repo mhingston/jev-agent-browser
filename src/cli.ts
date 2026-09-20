@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { AgentBrowserSession, checkAgentBrowser } from "./agentBrowser.js";
-import { createDecisionClient, type DecisionTransport } from "./decision.js";
+import { createDecisionClient, DECISION_PROVIDERS, type DecisionProvider, type DecisionTransport } from "./decision.js";
 import { normalizeSnapshot } from "./normalize.js";
 import { loadResearchConfig, runResearch } from "./researchRunner.js";
 import { routeSnapshot } from "./router.js";
@@ -10,9 +10,9 @@ function usage(): never {
   console.error(`Usage:
   jev [--url <url>] --goal <text> [run options]   # shorthand for jev run
   jev-agent-browser doctor [--browser-command <path>]
-  jev-agent-browser route --goal <text> [--url <url>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--transport <typesafe|fetch>] [--endpoint <url>] [--jsonl]
-  jev-agent-browser run --goal <text> [--url <url>] [--plan <text>] [--subtask <text>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--max-steps <n>] [--max-recovery-attempts <n>] [--history-limit <n>] [--repeat-limit <n>] [--expect-text <text>] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--transport <typesafe|fetch>] [--endpoint <url>] [--jsonl]
-  jev-agent-browser research --config <path> [--session <id>] [--browser-command <path>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--transport <typesafe|fetch>] [--endpoint <url>] [--jsonl] [--summary]
+  jev-agent-browser route --goal <text> [--url <url>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl]
+  jev-agent-browser run --goal <text> [--url <url>] [--plan <text>] [--subtask <text>] [--session <id>] [--browser-command <path>] [--input-values <json>] [--allow-risky] [--max-steps <n>] [--max-recovery-attempts <n>] [--history-limit <n>] [--repeat-limit <n>] [--expect-text <text>] [--context-sieve] [--context-threshold <n>] [--max-context-blocks <n>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl]
+  jev-agent-browser research --config <path> [--session <id>] [--browser-command <path>] [--cdp <port|url>] [--auto-connect|--attach] [--pin-tab] [--browser-arg <arg>] [--provider <typesafe|vercel|cloudflare|custom>] [--model <id>] [--endpoint <url>] [--transport <typesafe|fetch>] [--jsonl] [--summary]
 
 The route command is dry-run. The run command executes only a validated, non-review decision.`);
   process.exit(2);
@@ -57,14 +57,20 @@ async function main(): Promise<void> {
   const autoConnect = args.includes("--auto-connect") || args.includes("--attach");
   const pinTab = args.includes("--pin-tab");
   const browserArgs = argValues(args, "--browser-arg");
+  const providerText = argValue(args, "--provider") as DecisionProvider | undefined;
+  if (providerText != null && !DECISION_PROVIDERS.includes(providerText)) {
+    throw new Error(`--provider must be one of ${DECISION_PROVIDERS.join(", ")}`);
+  }
   const transportText = argValue(args, "--transport") as DecisionTransport | undefined;
   if (transportText != null && transportText !== "typesafe" && transportText !== "fetch") throw new Error("--transport must be typesafe or fetch");
+  if (providerText != null && transportText != null) throw new Error("Use --provider or legacy --transport, not both");
   const endpoint = argValue(args, "--endpoint");
+  const model = argValue(args, "--model");
   const jsonl = args.includes("--jsonl");
   const summary = args.includes("--summary");
   if (command === "research" && url) throw new Error("--url is only supported by route and run; research URLs belong in the config");
   const browser = new AgentBrowserSession({ session, binary, cdp, autoConnect, pinTab, browserArgs });
-  const client = createDecisionClient({ transport: transportText, endpoint });
+  const client = createDecisionClient({ provider: providerText, transport: transportText, endpoint, model });
   if (command === "research") {
     const config = await loadResearchConfig(configPath!);
     const result = await runResearch({ config, browser, client, onEvent: jsonl ? (event) => console.log(JSON.stringify(event)) : undefined });
@@ -90,7 +96,7 @@ async function main(): Promise<void> {
   const maxContextBlocks = maxContextBlocksText == null ? undefined : Number(maxContextBlocksText);
   if (contextThresholdText != null && !Number.isFinite(contextSieveThreshold)) throw new Error("--context-threshold must be a number");
   if (maxContextBlocksText != null && (!Number.isInteger(maxContextBlocks) || maxContextBlocks! < 1)) throw new Error("--max-context-blocks must be a positive integer");
-  const policy = { allowRisky, enableContextSieve: contextSieve, ...(contextSieveThreshold == null ? {} : { contextSieveThreshold }), ...(maxContextBlocks == null ? {} : { maxContextBlocks }) };
+  const policy = { allowRisky, enableContextSieve: contextSieve, ...(model ? { model } : {}), ...(contextSieveThreshold == null ? {} : { contextSieveThreshold }), ...(maxContextBlocks == null ? {} : { maxContextBlocks }) };
   if (command === "run") {
     const maxStepsText = argValue(args, "--max-steps");
     const maxSteps = maxStepsText == null ? undefined : Number(maxStepsText);
