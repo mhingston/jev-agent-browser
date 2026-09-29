@@ -1,4 +1,4 @@
-import { noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import { noul, parseNoulAnswer, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 export interface ContextBlock {
   id: string;
@@ -19,18 +19,6 @@ export interface ContextSieveOptions {
   threshold?: number;
   maxBlocks?: number;
   maxBlockChars?: number;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function validNoul(value: unknown): number | null {
-  const record = asRecord(value);
-  const score = record?.noul;
-  return typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1 ? score : null;
 }
 
 function shouldAlwaysKeep(text: string, index: number, total: number): boolean {
@@ -109,7 +97,7 @@ export async function sieveContext(
   const keptIds: string[] = [];
   const droppedIds: string[] = [];
   for (const block of blocks) {
-    const score = validNoul(response.answers[`context_${block.id}`]);
+    const score = parseNoulAnswer(response.answers[`context_${block.id}`])?.noul ?? null;
     if (score == null) return unchanged();
     if (block.alwaysKeep || (score != null && score >= threshold)) keptIds.push(block.id);
     else droppedIds.push(block.id);

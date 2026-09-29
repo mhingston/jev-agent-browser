@@ -1,4 +1,4 @@
-import { choice, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import { choice, parseChoiceAnswer, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 
 export const DEFAULT_MAX_ITEMS = 20;
 export const DEFAULT_MAX_TEXT_CHARS = 2_000;
@@ -102,12 +102,6 @@ export function buildBatchClassificationRequest(options: {
   };
 }
 
-function pickChoice(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  return typeof record.choice === "string" ? record.choice : typeof record.value === "string" ? record.value : undefined;
-}
-
 export function parseBatchClassificationResponse(response: { answers?: Record<string, unknown> } | Record<string, unknown>, profile: ClassificationProfile, candidateCount: number): ClassificationResult[] {
   const normalized = validateProfile(profile);
   const answers = ("answers" in response && response.answers && typeof response.answers === "object" ? response.answers : response) as Record<string, unknown>;
@@ -115,7 +109,7 @@ export function parseBatchClassificationResponse(response: { answers?: Record<st
     const labels: Record<string, string> = {};
     const errors: string[] = [];
     for (const [dimension, config] of Object.entries(normalized.dimensions)) {
-      const value = pickChoice(answers[questionKey(index, dimension)]);
+      const value = parseChoiceAnswer(answers[questionKey(index, dimension)])?.choice;
       if (!value || !Object.hasOwn(config.choices, value)) errors.push(`${dimension}:${value ?? "missing"}`);
       else labels[dimension] = value;
     }

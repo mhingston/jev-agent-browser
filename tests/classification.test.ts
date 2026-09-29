@@ -18,8 +18,8 @@ describe("research classification profiles", () => {
 
   it("parses labels and applies explicit profile overrides", () => {
     const response = { answers: {
-      candidate_0_relevance: { choice: "yes" },
-      candidate_0_seniority: { choice: "other" },
+      candidate_0_relevance: { choice: "yes", confidence: 1, probabilities: { yes: 1, no: 0 } },
+      candidate_0_seniority: { choice: "other", confidence: 1, probabilities: { senior: 0, other: 1 } },
     } };
     const parsed = parseBatchClassificationResponse(response, profile, 1);
     expect(parsed[0].labels).toEqual({ relevance: "yes", seniority: "other" });

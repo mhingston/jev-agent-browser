@@ -1,4 +1,4 @@
-import { choice, createJevClient, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import { choice, createJevClient, noul, parseChoiceAnswer, parseNoulAnswer, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 import { buildCandidates } from "./candidates.js";
 import { sieveContext } from "./context.js";
 import { normalizeSnapshot } from "./normalize.js";
@@ -6,7 +6,6 @@ import { DEFAULT_POLICY, resolvePolicy } from "./policy.js";
 import type {
   ActionCandidate,
   ActionHistoryEntry,
-  ChoiceAnswer,
   NormalizedSnapshot,
   RouteDecision,
   RouteInput,
@@ -45,24 +44,7 @@ export interface RouteContext {
   tools?: ToolSpec[];
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function parseChoiceAnswer(value: unknown): ChoiceAnswer | null {
-  const record = asRecord(value);
-  if (!record || typeof record.choice !== "string") return null;
-  const probabilities = asRecord(record.probabilities);
-  return {
-    choice: record.choice,
-    confidence: typeof record.confidence === "number" ? record.confidence : undefined,
-    probabilities: probabilities as Record<string, number> | undefined,
-  };
-}
-
-function validateChoice(answer: ChoiceAnswer | null, ids: string[]): ChoiceAnswer | null {
+function validateChoice(answer: ReturnType<typeof parseChoiceAnswer>, ids: string[]) {
   if (!answer || !answer.probabilities || typeof answer.confidence !== "number") return null;
   if (!ids.includes(answer.choice)) return null;
   const keys = Object.keys(answer.probabilities).sort();
@@ -74,14 +56,6 @@ function validateChoice(answer: ChoiceAnswer | null, ids: string[]): ChoiceAnswe
   const max = Math.max(...values);
   if ((answer.probabilities[answer.choice] ?? -1) < max - 1e-6) return null;
   return answer;
-}
-
-function validateNoul(value: unknown): number | null {
-  const record = asRecord(value);
-  const noulValue = record?.noul;
-  return typeof noulValue === "number" && Number.isFinite(noulValue) && noulValue >= 0 && noulValue <= 1
-    ? noulValue
-    : null;
 }
 
 function operationIds(candidates: ActionCandidate[]): ActionCandidate["kind"][] {
@@ -297,8 +271,8 @@ export async function routeSnapshot(
     return decision;
   }
   const latencyMs = Math.round((performance.now() - started) * 100) / 100;
-  const goalCompletedProbability = validateNoul(response.answers.goal_completed);
-  const stuckProbability = response.answers.stuck == null ? 0 : validateNoul(response.answers.stuck);
+  const goalCompletedProbability = parseNoulAnswer(response.answers.goal_completed)?.noul ?? null;
+  const stuckProbability = response.answers.stuck == null ? 0 : parseNoulAnswer(response.answers.stuck)?.noul ?? null;
   const selection = resolveSelection(response, candidates);
   if (goalCompletedProbability == null || stuckProbability == null || !selection) {
     const decision = fallbackDecision(snapshot, policy, "invalid-response", response, 0, goalCompletedProbability ?? 0, {}, stateSizeChars, latencyMs, false, stuckProbability ?? 0);

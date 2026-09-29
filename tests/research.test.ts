@@ -43,7 +43,7 @@ describe("research helpers", () => {
           }
           return { model: "fixture", answers };
         }
-        return { model: "fixture", answers: { candidate_0_relevance: { choice: "yes" } } };
+        return { model: "fixture", answers: { candidate_0_relevance: { choice: "yes", confidence: 1, probabilities: { yes: 1, no: 0 } } } };
       },
     };
     const result = await runResearch({

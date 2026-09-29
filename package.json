@@ -1,6 +1,6 @@
 {
   "name": "@mhingston5/jev-agent-browser",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Provider-agnostic, confidence-gated Jev browser actions for agent-browser",
   "license": "MIT",
   "author": "Mark Hingston",
@@ -59,7 +59,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@mhingston5/jev-cli": "^0.2.1"
+    "@mhingston5/jev-cli": "^0.4.2"
   },
   "peerDependencies": {
     "agent-browser": ">=0.31.1"
