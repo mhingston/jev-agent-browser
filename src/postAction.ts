@@ -1,5 +1,5 @@
-import { choice, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
-import type { BrowserFailureKind, ChoiceAnswer, PostActionContext, PostActionVerifier } from "./types.js";
+import { choice, noul, parseChoiceAnswer, parseNoulAnswer, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import type { BrowserFailureKind, PostActionContext, PostActionVerifier } from "./types.js";
 
 const FAILURE_CLASSES: Record<BrowserFailureKind, string> = {
   stale: "The target or page changed before the intended effect was applied.",
@@ -10,25 +10,13 @@ const FAILURE_CLASSES: Record<BrowserFailureKind, string> = {
   unknown: "The action result is ambiguous or does not fit another failure class.",
 };
 
-function validProbability(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
-}
-
-function validChoice(answer: unknown, ids: string[]): answer is ChoiceAnswer & { confidence: number; probabilities: Record<string, number> } {
-  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return false;
-  const record = answer as Record<string, unknown>;
-  const probabilities = record.probabilities;
-  if (typeof record.choice !== "string" || !ids.includes(record.choice) || !validProbability(record.confidence)) return false;
-  if (!probabilities || typeof probabilities !== "object" || Array.isArray(probabilities)) return false;
-  const entries = Object.entries(probabilities as Record<string, unknown>);
-  if (entries.length !== ids.length || entries.some(([key, value]) => !ids.includes(key) || !validProbability(value))) return false;
-  if (Math.abs(entries.reduce((sum, [, value]) => sum + Number(value), 0) - 1) > 0.02) return false;
-  const max = Math.max(...entries.map(([, value]) => Number(value)));
-  return Number((probabilities as Record<string, number>)[record.choice]) >= max - 1e-6;
-}
-
-function validNoul(answer: unknown): answer is { noul: number } {
-  return Boolean(answer && typeof answer === "object" && !Array.isArray(answer) && validProbability((answer as Record<string, unknown>).noul));
+function validChoice(answer: ReturnType<typeof parseChoiceAnswer>, ids: string[]): boolean {
+  if (!answer || !ids.includes(answer.choice)) return false;
+  const entries = Object.entries(answer.probabilities);
+  if (entries.length !== ids.length || entries.some(([key]) => !ids.includes(key))) return false;
+  if (Math.abs(entries.reduce((sum, [, value]) => sum + value, 0) - 1) > 0.02) return false;
+  const max = Math.max(...entries.map(([, value]) => value));
+  return answer.probabilities[answer.choice] >= max - 1e-6;
 }
 
 export function jevPostActionVerifier(
@@ -36,7 +24,7 @@ export function jevPostActionVerifier(
   options: { model?: string; threshold?: number } = {},
 ): PostActionVerifier {
   const threshold = options.threshold ?? 0.75;
-  if (!validProbability(threshold)) throw new Error("post-action threshold must be between 0 and 1");
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error("post-action threshold must be between 0 and 1");
   return async (context: PostActionContext): Promise<boolean> => {
     const response = await client.systemOne({
       model: options.model ?? "jev-1.13.0",
@@ -55,8 +43,8 @@ export function jevPostActionVerifier(
         failure_class: choice("Which failure class best describes the action result if it did not succeed?", FAILURE_CLASSES),
       },
     });
-    const succeeded = response.answers.action_succeeded;
-    const failure = response.answers.failure_class;
-    return validNoul(succeeded) && succeeded.noul >= threshold && validChoice(failure, Object.keys(FAILURE_CLASSES));
+    const succeeded = parseNoulAnswer(response.answers.action_succeeded);
+    const failure = parseChoiceAnswer(response.answers.failure_class);
+    return succeeded != null && succeeded.noul >= threshold && validChoice(failure, Object.keys(FAILURE_CLASSES));
   };
 }

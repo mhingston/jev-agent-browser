@@ -1,4 +1,4 @@
-import { choice, createJevClient, noul, type SystemOneLikeClient } from "@mhingston5/jev-cli";
+import { choice, createJevClient, noul, parseChoiceAnswer, parseNoulAnswer, type SystemOneLikeClient } from "@mhingston5/jev-cli";
 import type { BrowserToolSpec } from "./types.js";
 
 export type ToolSpec = BrowserToolSpec;
@@ -29,18 +29,7 @@ const DEFAULTS: Required<ToolRouteOptions> = {
   allowRisky: false,
 };
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function choiceAnswer(value: unknown): { choice: string; confidence: number; probabilities: Record<string, number> } | null {
-  const item = record(value);
-  const probabilities = record(item?.probabilities);
-  if (!item || typeof item.choice !== "string" || typeof item.confidence !== "number" || !probabilities) return null;
-  return { choice: item.choice, confidence: item.confidence, probabilities: probabilities as Record<string, number> };
-}
-
-function validChoice(answer: ReturnType<typeof choiceAnswer>, ids: string[]) {
+function validChoice(answer: ReturnType<typeof parseChoiceAnswer>, ids: string[]) {
   if (!answer || !ids.includes(answer.choice) || !Number.isFinite(answer.confidence) || answer.confidence < 0 || answer.confidence > 1) return false;
   const keys = Object.keys(answer.probabilities).sort();
   const expected = [...ids].sort();
@@ -49,11 +38,6 @@ function validChoice(answer: ReturnType<typeof choiceAnswer>, ids: string[]) {
   if (values.some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1)) return false;
   if (Math.abs(values.reduce((sum, value) => sum + value, 0) - 1) > 0.02) return false;
   return answer.probabilities[answer.choice] >= Math.max(...values) - 1e-6;
-}
-
-function noulScore(value: unknown): number | null {
-  const score = record(value)?.noul;
-  return typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1 ? score : null;
 }
 
 function fallback(model: string, reasonCode: ToolRouteResult["reasonCode"], fitProbability = 0, probabilities: Record<string, number> = {}): ToolRouteResult {
@@ -86,8 +70,8 @@ export async function routeTool(
   } catch {
     return fallback(policy.model, "invalid-response");
   }
-  const answer = choiceAnswer(response.answers.tool);
-  const fit = noulScore(response.answers.tool_fit);
+  const answer = parseChoiceAnswer(response.answers.tool);
+  const fit = parseNoulAnswer(response.answers.tool_fit)?.noul ?? null;
   if (!answer || !validChoice(answer, ids) || fit == null) return fallback(response.model, "invalid-response", fit ?? 0);
   const selected = tools.find((tool) => tool.id === answer.choice);
   if (!selected || answer.choice === noneId || fit < policy.fitThreshold) {

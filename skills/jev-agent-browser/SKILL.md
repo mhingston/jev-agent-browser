@@ -59,6 +59,7 @@ Provider selection is forwarded to `@mhingston5/jev-cli`:
 
 ```bash
 jev-agent-browser run --provider typesafe --goal "Open the settings page"
+jev-agent-browser run --provider openrouter --goal "Open the settings page"
 jev-agent-browser run --provider vercel --goal "Open the settings page"
 jev-agent-browser run --provider cloudflare --goal "Open the settings page"
 ```

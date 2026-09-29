@@ -137,12 +137,6 @@ export interface RecoveryContext {
   instruction?: string;
 }
 
-export interface ChoiceAnswer {
-  choice: string;
-  confidence?: number;
-  probabilities?: Record<string, number>;
-}
-
 export interface TextValueContext {
   goal: string;
   field: {
@@ -177,4 +171,3 @@ export interface BrowserToolSpec {
   config?: Record<string, unknown>;
   collect?: boolean;
 }
-
